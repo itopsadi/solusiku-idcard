@@ -1,15 +1,17 @@
 let currentStream = null;
-let currentFacing = 'user';
+let currentFacing = 'environment'; // Default kamera belakang untuk foto ID Card
 
-export async function initCamera(videoElement, facingMode = 'user') {
+export async function initCamera(videoElement, facingMode = 'environment') {
   stopCamera();
   currentFacing = facingMode;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode,
-        width: { ideal: 1280 },
-        height: { ideal: 960 },
+        facingMode: { ideal: facingMode },
+        // Portrait 9:16 constraints
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
+        aspectRatio: { ideal: 9/16 }
       },
       audio: false,
     });
@@ -18,17 +20,33 @@ export async function initCamera(videoElement, facingMode = 'user') {
     await videoElement.play();
     return true;
   } catch (err) {
-    console.error('Camera error:', err);
-    return false;
+    // Fallback: try without strict facingMode constraint
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+        },
+        audio: false,
+      });
+      currentStream = stream;
+      videoElement.srcObject = stream;
+      await videoElement.play();
+      return true;
+    } catch (err2) {
+      console.error('Camera error:', err2);
+      return false;
+    }
   }
 }
 
 export function capturePhoto(videoElement) {
   const canvas = document.createElement('canvas');
+  // Capture at native resolution
   canvas.width = videoElement.videoWidth;
   canvas.height = videoElement.videoHeight;
   const ctx = canvas.getContext('2d');
-  // Flip horizontally if front camera
+  // Only mirror front camera
   if (currentFacing === 'user') {
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -51,4 +69,8 @@ export function stopCamera() {
 
 export function isCameraSupported() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+export function getCurrentFacing() {
+  return currentFacing;
 }

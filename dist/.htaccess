@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Jangan arahkan ulang jika file asli (css, js, gambar) tersedia
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Arahkan sisanya ke index.html untuk ditangani oleh router aplikasi
+  RewriteRule . /index.html [L]
+</IfModule>

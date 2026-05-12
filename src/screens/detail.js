@@ -1,5 +1,6 @@
 import { getEmployee, savePhoto, saveProcessedPhoto } from '../services/api.js';
-import { initCamera, capturePhoto, switchCamera, stopCamera, isCameraSupported } from '../services/camera.js';
+import { initCamera, capturePhoto, switchCamera, stopCamera, isCameraSupported, getCurrentFacing } from '../services/camera.js';
+// currentFacing is accessed via getCurrentFacing()
 import { removeBackground } from '../services/background-removal.js';
 import { triggerWebhook } from '../services/webhook.js';
 import { statusBadge, formatDate, blobToDataURL } from '../utils/helpers.js';
@@ -64,9 +65,10 @@ export async function renderDetail(container, empId) {
 
           <!-- Camera Tab -->
           <div id="tab-camera" class="tab-content" style="display:${hasCamera ? 'block' : 'none'}">
-            <div class="camera-container" id="camera-box">
-              <video id="camera-video" autoplay playsinline muted></video>
-              <div class="camera-overlay"><div class="camera-guide"></div></div>
+            <div class="camera-container" id="camera-box" style="position:relative; background:#000; border-radius:var(--radius-md); overflow:hidden; aspect-ratio:9/16; max-height:65vh; margin:0 auto;">
+              <video id="camera-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; display:block;"></video>
+              <div class="camera-overlay" style="position:absolute;inset:0;pointer-events:none;"><div class="camera-guide"></div></div>
+              <div id="camera-label" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#fff;font-size:0.75rem;padding:4px 12px;border-radius:999px;">📷 Kamera Belakang</div>
             </div>
             <div class="camera-controls">
               <button class="btn-camera-switch" id="btn-switch" title="Switch Camera">
@@ -161,8 +163,13 @@ export async function renderDetail(container, empId) {
   });
 
   // Switch camera
-  container.querySelector('#btn-switch').addEventListener('click', () => {
-    switchCamera(videoEl);
+  container.querySelector('#btn-switch').addEventListener('click', async () => {
+    await switchCamera(videoEl);
+    const label = container.querySelector('#camera-label');
+    if (label) {
+      const isFront = getCurrentFacing() === 'user';
+      label.textContent = isFront ? '🤳 Kamera Depan' : '📷 Kamera Belakang';
+    }
   });
 
   // Upload zone

@@ -13,17 +13,26 @@ export default defineConfig({
       manifest: {
         name: 'IT OPS - SOLUSIKU ID Card Control Center',
         short_name: 'IT OPS Solusiku',
-        description: 'ID Card Automation & Control Center',
+        description: 'ID Card Automation & Control Center untuk IT Operations Solusiku',
         theme_color: '#b91c1c',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
+        lang: 'id',
         icons: [
           {
             src: 'pwa-icon.svg',
-            sizes: '192x192 512x512',
+            sizes: '192x192',
             type: 'image/svg+xml',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icon.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'maskable'
           }
         ]
       },
