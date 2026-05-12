@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  solusiku-idcard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: solusiku_idcard_frontend
+    restart: always
+    ports:
+      # Map host port 8080 to container port 80 (Apache)
+      # Anda bisa mengubah 8080 menjadi port berapapun yang tidak terpakai di server Ubuntu Anda.
+      - "8080:80"

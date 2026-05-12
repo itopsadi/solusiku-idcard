@@ -1,0 +1,238 @@
+/* ===== ID CARD - SOLUSIKU EXACT DESIGN ===== */
+/* 324×514px display → 3.125× export = 300 DPI print-ready */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
+.idcard {
+  width: 324px;
+  height: 514px;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif;
+  position: relative;
+  background: #ffffff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+}
+
+/* ============================
+   BACKGROUND LAYER (z 0–3)
+   ============================ */
+.idcard-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Gray circle — shifted left with small gap, moved down */
+.idcard-circle-bg {
+  position: absolute;
+  top: 133px;          /* Shifted down by 25px to avoid logo collision */
+  left: 10px;          /* Mepet kiri tapi ada space sedikit */
+  width: 230px;        /* Shrunk 10% from 256px */
+  height: 230px;       /* Shrunk 10% from 256px */
+  border-radius: 50%;
+  background: #d4d4d4;
+  z-index: 2;          /* in front of bottom-deco box */
+}
+
+/* Top-right red blob */
+.idcard-blob-tr {
+  position: absolute;
+  top: 0; right: 0;
+  width: 70px;         /* Reduced width */
+  height: 160px;       /* Made longer downwards */
+  background: #D94035;
+  border-radius: 0 8px 0 70px; /* Perfect bottom-left curve to match width */
+  z-index: 2;
+}
+
+/* 3x2 white dots inside red blob */
+.idcard-dots-tr {
+  position: absolute;
+  top: 12px; right: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 10px); /* 3 columns for 9 dots */
+  gap: 8px;
+  z-index: 3;
+}
+.idcard-dots-tr .dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+}
+
+/* Bottom-left gray rectangle block (matches reference: tall vertical block) */
+.idcard-bottom-deco {
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 96px;
+  height: 260px;
+  background: #e2e2e2;
+  border-radius: 0 0 0 20px;
+  z-index: 1;
+}
+
+/* White dots ON the gray block */
+.idcard-dots-bl {
+  position: absolute;
+  bottom: 22px;
+  left: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 10px);
+  gap: 16px;
+  z-index: 2;
+}
+.idcard-dots-bl .dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+}
+
+/* ============================
+   CONTENT LAYER (z 10+)
+   ============================ */
+.idcard-content {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 22px 0; /* Logo up by 8px */
+}
+
+/* ===== HEADER ===== */
+.idcard-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 11;
+}
+
+/* ===== PHOTO AREA ===== */
+/* Antigravity effect with clipped shoulders */
+.idcard-photo-wrapper {
+  position: relative;
+  z-index: 12;
+  width: 230px;        /* Match circle */
+  height: 230px;       /* Match circle */
+  margin-top: 81px; /* Pushed down by 25px to match circle top */
+  margin-left: -12px; /* Pull left to match circle's 10px left position */
+  overflow: visible; /* Explicitly requested */
+}
+
+/* Layer 1: Shoulders clipped perfectly inside the circle */
+.idcard-photo-clip {
+  position: absolute;
+  top: 6px; left: 6px; right: 6px; bottom: 6px; /* 6px gap all around */
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 13;
+  background-size: 280px 380px;
+  background-repeat: no-repeat;
+  background-position: bottom center;
+}
+
+/* Layer 2: Head popping out (cut exactly at 10% from top of circle to guarantee shoulders are clipped) */
+.idcard-photo-pop {
+  position: absolute;
+  width: 280px;
+  height: 380px;
+  bottom: 6px;         /* Match gap */
+  left: 50%;
+  transform: translateX(-50%);
+  clip-path: polygon(0 0, 100% 0, 100% 65%, 0 65%); /* Lowered cut line to prevent clipping neck */
+  z-index: 14;
+  background-size: 280px 380px;
+  background-repeat: no-repeat;
+  background-position: bottom center;
+}
+
+
+
+/* Original placeholder styling */
+.idcard-photo {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.idcard-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+}
+
+.idcard-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+}
+
+.idcard-photo-placeholder svg {
+  width: 90px; height: 90px;
+  opacity: 0.4;
+}
+
+/* ===== INFO BLOCK ===== */
+.idcard-info {
+  flex-shrink: 0;
+  padding: 0 4px;
+  margin-top: 16px; /* Increased from 4px to add space between circle and text */
+  z-index: 11;
+}
+
+/* Name — size is set dynamically via inline style based on length */
+.idcard-name {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  color: #111111;
+  line-height: 1.1;
+  margin-bottom: 3px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+/* Job title — red, medium weight, not italic, slightly larger */
+.idcard-jabatan {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-style: normal;
+  color: #D94035;
+  line-height: 1.2;
+  margin-bottom: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+/* ===== FOOTER — NIK bottom-right ===== */
+.idcard-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 10px 0 18px;
+  flex-shrink: 0;
+  z-index: 11;
+  margin-top: auto;
+}
+
+.idcard-nik {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #666666;
+  letter-spacing: 0.5px;
+}

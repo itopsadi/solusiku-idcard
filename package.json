@@ -1,0 +1,22 @@
+{
+  "name": "solusiku-idcard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "IT Operations Control Center - ID Card Automation Dashboard",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
+    "cropperjs": "^1.6.2",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}
