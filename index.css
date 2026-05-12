@@ -722,15 +722,85 @@ body {
   .detail-grid { grid-template-columns: 1fr; }
 }
 
+/* ===== MOBILE TOP BAR ===== */
+#mobile-topbar {
+  display: none;
+}
+
+/* ===== SIDEBAR BACKDROP ===== */
+#sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+#sidebar-backdrop.active {
+  display: block;
+}
+
 @media (max-width: 768px) {
-  #sidebar { transform: translateX(-100%); }
-  #sidebar.open { transform: translateX(0); }
-  #main-content { margin-left: 0; }
+  /* Mobile Top Bar */
+  #mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+  }
+  #btn-hamburger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #btn-hamburger svg {
+    width: 22px;
+    height: 22px;
+  }
+  #btn-hamburger:hover {
+    background: var(--bg-primary);
+  }
+  #mobile-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  /* Sidebar slides in from left */
+  #sidebar {
+    transform: translateX(-100%);
+    z-index: 110;
+    position: fixed;
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  #sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+
+  /* Main content shifts down to accommodate topbar */
+  #main-content {
+    margin-left: 0;
+    padding-top: 56px;
+  }
   #page-container { padding: 16px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .page-header h1 { font-size: 1.4rem; }
   .approval-actions { flex-direction: column; }
-  
+
   /* Mobile Table to Card Layout */
   .data-table table, .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr {
     display: block;
@@ -768,7 +838,6 @@ body {
     text-align: left;
     margin-right: 12px;
   }
-  /* First column (Nama) acts as the card title */
   .data-table td:first-child {
     display: block;
     text-align: left;

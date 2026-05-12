@@ -32,15 +32,49 @@ registerRoute('/finished', renderFinished);
 registerRoute('/login', renderLogin);
 
 // Global UI Interceptors
+function openSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const iconH = document.getElementById('icon-hamburger');
+  const iconC = document.getElementById('icon-close');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('active');
+  if (iconH) iconH.style.display = 'none';
+  if (iconC) iconC.style.display = 'block';
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const iconH = document.getElementById('icon-hamburger');
+  const iconC = document.getElementById('icon-close');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('active');
+  if (iconH) iconH.style.display = 'block';
+  if (iconC) iconC.style.display = 'none';
+}
+
 document.addEventListener('click', (e) => {
-  // Mobile sidebar toggle
-  if (window.innerWidth <= 768) {
+  // Hamburger button
+  if (e.target.closest('#btn-hamburger')) {
     const sidebar = document.getElementById('sidebar');
-    if (e.target.closest('#mobile-menu-btn')) {
-      sidebar.classList.toggle('open');
-    } else if (!e.target.closest('#sidebar')) {
-      sidebar.classList.remove('open');
+    if (sidebar && sidebar.classList.contains('open')) {
+      closeSidebar();
+    } else {
+      openSidebar();
     }
+    return;
+  }
+
+  // Backdrop click closes sidebar
+  if (e.target.closest('#sidebar-backdrop')) {
+    closeSidebar();
+    return;
+  }
+
+  // Auto-close sidebar when a nav link is tapped on mobile
+  if (window.innerWidth <= 768 && e.target.closest('.nav-link')) {
+    closeSidebar();
   }
 
   // Logout handling

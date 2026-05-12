@@ -18,6 +18,22 @@
 </head>
 <body>
   <div id="app">
+    <!-- Mobile Top Bar -->
+    <header id="mobile-topbar">
+      <button id="btn-hamburger" aria-label="Buka Menu">
+        <svg id="icon-hamburger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg id="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <span id="mobile-title">
+        <span style="font-weight:800;color:var(--accent);">IT OPS</span>
+        <span style="font-weight:500;"> SOLUSIKU</span>
+      </span>
+      <div style="width:40px"></div>
+    </header>
+
+    <!-- Sidebar Backdrop -->
+    <div id="sidebar-backdrop"></div>
+
     <nav id="sidebar">
       <div class="sidebar-brand">
         <div class="brand-icon">
