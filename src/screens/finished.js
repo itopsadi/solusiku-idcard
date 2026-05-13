@@ -4,8 +4,10 @@ import { navigate } from '../utils/router.js';
 
 export async function renderFinished(container) {
   const employees = await getEmployees();
-  // Hanya ambil yang sudah selesai (approved)
-  const finishedEmployees = employees.filter(e => e.status === 'approved');
+  // Ambil yang sudah selesai (approved) dan urutkan terbaru di atas
+  const finishedEmployees = employees
+    .filter(e => e.status === 'approved')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   container.innerHTML = `
     <div class="page-header animate-in">
@@ -23,7 +25,7 @@ export async function renderFinished(container) {
         <thead>
           <tr>
             <th>Nama</th>
-            <th>Lokasi</th>
+            <th>Departemen</th>
             <th>NIK</th>
             <th>Ticket</th>
             <th>Status</th>
@@ -74,7 +76,7 @@ function renderRows(employees) {
         <div class="emp-name">${emp.name}</div>
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; font-style: italic;">${emp.jabatan}</div>
       </td>
-      <td data-label="Lokasi" style="color:var(--text-muted);font-size:0.85rem">${emp.location || '-'}</td>
+      <td data-label="Departemen" style="color:var(--text-muted);font-size:0.85rem">${emp.department || '-'}</td>
       <td data-label="NIK"><span class="emp-nik">${emp.nik}</span></td>
       <td data-label="Ticket"><span class="emp-nik">${emp.ticketId}</span></td>
       <td data-label="Status">${statusBadge(emp.status)}</td>

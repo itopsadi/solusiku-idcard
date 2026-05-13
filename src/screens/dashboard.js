@@ -7,8 +7,10 @@ import { showToast } from '../utils/toast.js';
 export async function renderDashboard(container) {
   const stats = await getStats();
   const allEmployees = await getEmployees();
-  // Filter out approved employees so they don't clutter the main queue
-  const employees = allEmployees.filter(e => e.status !== 'approved');
+  // Filter yang belum selesai dan URUTKAN terbaru di atas
+  const employees = allEmployees
+    .filter(e => e.status !== 'approved')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const currentLogo = getLogo();
 
   container.innerHTML = `
@@ -52,7 +54,7 @@ export async function renderDashboard(container) {
         <thead>
           <tr>
             <th>Nama</th>
-            <th>Lokasi</th>
+            <th>Departemen</th>
             <th>NIK</th>
             <th>Ticket</th>
             <th>Status</th>
@@ -103,7 +105,7 @@ function renderRows(employees) {
         <div class="emp-name">${emp.name}</div>
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; font-style: italic;">${emp.jabatan}</div>
       </td>
-      <td data-label="Lokasi" style="color:var(--text-muted);font-size:0.85rem">${emp.location || '-'}</td>
+      <td data-label="Departemen" style="color:var(--text-muted);font-size:0.85rem">${emp.department || '-'}</td>
       <td data-label="NIK"><span class="emp-nik">${emp.nik}</span></td>
       <td data-label="Ticket"><span class="emp-nik">${emp.ticketId}</span></td>
       <td data-label="Status">${statusBadge(emp.status)}</td>
