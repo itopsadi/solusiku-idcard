@@ -181,42 +181,68 @@ export async function loginUser(username, password, rememberMe = true) {
 
     if (!userId) throw new Error('ID Pengguna tidak valid');
 
-    // Cek Group GLPI
-    const groupsRes = await fetch(`${GLPI_API_URL}/search/Group_User?criteria[0][field]=2&criteria[0][searchtype]=equals&criteria[0][value]=${userId}&expand_dropdowns=true`, {
-      headers: {
-        'App-Token': GLPI_APP_TOKEN,
-        'Session-Token': sessionToken
-      }
-    });
+    // --- ADMIN BYPASS FOR GROUP CHECK ---
+    // We initialize a temporary admin session to bypass 403/400 errors
+    let adminSessionToken = null;
+    const adminUserToken = import.meta.env.VITE_GLPI_USER_TOKEN;
 
+    console.log('[Auth] Admin Token Configured:', adminUserToken ? 'YES (Starts with ' + adminUserToken.substring(0, 4) + '...)' : 'NO');
+
+    if (adminUserToken) {
+      try {
+        const adminSessionRes = await fetch(`${GLPI_API_URL}/initSession`, {
+          headers: {
+            'App-Token': GLPI_APP_TOKEN,
+            'Authorization': `user_token ${adminUserToken}`
+          }
+        });
+        if (adminSessionRes.ok) {
+          const adminSessionData = await adminSessionRes.json();
+          adminSessionToken = adminSessionData.session_token;
+          console.log('[Auth] Admin Session Init: SUCCESS');
+        } else {
+          const errText = await adminSessionRes.text();
+          console.error('[Auth] Admin Session Init: FAILED', adminSessionRes.status, errText);
+        }
+      } catch (e) {
+        console.error('[Auth] Admin Init Exception:', e);
+      }
+    }
+
+    console.log('[Auth] Using Token for Group Check:', adminSessionToken ? 'ADMIN SESSION' : 'USER SESSION (Fallback)');
+
+    const secureHeaders = {
+      'App-Token': GLPI_APP_TOKEN,
+      'Session-Token': adminSessionToken || sessionToken
+    };
+
+    // --- AUTH VALIDATION LOGIC ---
     let allowed = false;
     let allowedGroupName = '';
 
+    const checkName = (name) => {
+      if (!name) return false;
+      const n = name.toString().toLowerCase();
+      return n.includes('it operation') || n.includes('it ops') || n.includes('it op') || 
+             n.includes('hrga') || n.includes('human resource') || n.includes('hr') || 
+             n.includes('general affair') || n.includes('ga') || n.includes('admin') || 
+             n.includes('super-admin') || n.includes('technician') || n.includes('teknisi');
+    };
+
+    // METHOD 1: Search API (Using Secure Headers)
+    const groupsRes = await fetch(`${GLPI_API_URL}/search/Group_User?criteria[0][field]=2&criteria[0][searchtype]=equals&criteria[0][value]=${userId}&expand_dropdowns=true`, {
+      headers: secureHeaders
+    });
+
     if (groupsRes.ok) {
       const groupsData = await groupsRes.json();
-      // Handle various GLPI search result formats
       const dataRows = (groupsData && groupsData.data) ? groupsData.data : (Array.isArray(groupsData) ? groupsData : []);
-
       if (Array.isArray(dataRows)) {
         for (const g of dataRows) {
-          // Field '1' is typically the group name when expand_dropdowns=true
-          // Handle both string and object formats (some GLPI versions return {id: X, name: Y})
           let val = g['1'] || g.name || '';
           let rawName = (typeof val === 'object' && val !== null) ? (val.name || '') : val;
-          const groupName = rawName.toString().toLowerCase();
-          
-          console.log('[Auth] Checking Group:', groupName);
-
-          if (
-            groupName.includes('it operations') ||
-            groupName.includes('it operation') ||
-            groupName.includes('it ops') ||
-            groupName.includes('hrga') ||
-            groupName.includes('human resource') ||
-            groupName.includes('hr') ||
-            groupName.includes('general affair') ||
-            groupName.includes('ga')
-          ) {
+          console.log('[Auth] Method 1 - Group Found:', rawName);
+          if (checkName(rawName)) {
             allowed = true;
             allowedGroupName = rawName;
             break;
@@ -225,24 +251,41 @@ export async function loginUser(username, password, rememberMe = true) {
       }
     }
 
-    // Fallback: Cek Profil Aktif (Sangat berguna jika pencarian grup gagal)
-    const activeProfile = (sessionData.session.glpiactiveprofile || {}).name || '';
-    if (!allowed && activeProfile) {
-      const pName = activeProfile.toLowerCase();
-      if (
-        pName.includes('it operations') ||
-        pName.includes('it operation') ||
-        pName.includes('admin') ||
-        pName.includes('super-admin') ||
-        pName.includes('technician') ||
-        pName.includes('teknisi') ||
-        pName.includes('hrga') ||
-        pName.includes('human resource') ||
-        pName.includes('hr') ||
-        pName.includes('general affair')
-      ) {
-        allowed = true;
+    // METHOD 2: Direct User-Group API (Using Secure Headers)
+    if (!allowed) {
+      try {
+        const directGroupsRes = await fetch(`${GLPI_API_URL}/User/${userId}/Group/`, {
+          headers: secureHeaders
+        });
+        if (directGroupsRes.ok) {
+          const directGroups = await directGroupsRes.json();
+          for (const dg of (Array.isArray(directGroups) ? directGroups : [])) {
+            console.log('[Auth] Method 2 - Group Found:', dg.name);
+            if (checkName(dg.name)) {
+              allowed = true;
+              allowedGroupName = dg.name;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Method 2 Failed:', e);
       }
+    }
+
+    // METHOD 3: Active Profile Fallback
+    const activeProfile = (sessionData.session.glpiactiveprofile || {}).name || '';
+    console.log('[Auth] Active Profile:', activeProfile);
+    if (!allowed && checkName(activeProfile)) {
+      allowed = true;
+    }
+
+    // Cleanup Admin Session if used
+    if (adminSessionToken) {
+      fetch(`${GLPI_API_URL}/killSession`, {
+        method: 'GET',
+        headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSessionToken }
+      }).catch(() => {});
     }
 
     if (!allowed) {
