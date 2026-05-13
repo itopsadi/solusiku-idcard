@@ -22,7 +22,8 @@ export function renderLogin(container) {
         </div>
 
         <h1 style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">IT OPS - SOLUSIKU</h1>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 32px; font-weight: 500;">ID Card Control Center</p>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 8px; font-weight: 500;">ID Card Control Center</p>
+        <p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 32px;">Login menggunakan akun GLPI</p>
 
         <form id="login-form" style="display: flex; flex-direction: column; gap: 16px; text-align: left;">
           <div>
@@ -55,7 +56,7 @@ export function renderLogin(container) {
         </form>
 
         <div style="font-size: 0.65rem; color: var(--text-muted); opacity: 0.6; text-align: center; margin-top: 32px;">
-          Powered By IT Operations ADI - Hibah Gigih
+          Powered By IT Operations ADI - HG
         </div>
       </div>
     </div>
