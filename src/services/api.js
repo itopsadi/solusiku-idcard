@@ -453,11 +453,72 @@ export async function getEmployee(id) {
   if (!dataLoaded) await fetchGLPITickets();
   const emp = employees.find(e => e.id === id);
   if (!emp) return null;
+
+  let photo = await getPhotoDB(`${id}_photo`);
+  let processedPhoto = await getPhotoDB(`${id}_processed`);
+
+  // SINKRONISASI CLOUD: Jika foto hasil proses (ID Card) hilang di lokal tapi tiketnya dari GLPI,
+  // coba tarik lampiran dokumen dari GLPI.
+  if (!processedPhoto && id.startsWith('glpi-')) {
+    console.log('[Sync] Foto lokal tidak ditemukan, mencoba sinkronisasi dari GLPI...');
+    const ticketId = id.replace('glpi-', '');
+    const cloudPhoto = await fetchIDCardFromGLPI(ticketId);
+    if (cloudPhoto) {
+      console.log('[Sync] Berhasil mendownload ID Card dari GLPI.');
+      processedPhoto = cloudPhoto;
+      // Simpan ke lokal (IndexedDB) agar pembukaan berikutnya lebih cepat
+      await savePhotoDB(`${id}_processed`, cloudPhoto);
+    }
+  }
+
   return {
     ...emp,
-    photo: await getPhotoDB(`${id}_photo`),
-    processedPhoto: await getPhotoDB(`${id}_processed`),
+    photo,
+    processedPhoto,
   };
+}
+
+async function fetchIDCardFromGLPI(ticketId) {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return null;
+
+  try {
+    // 1. Cari dokumen yang terhubung ke tiket ini
+    const docItemRes = await fetch(`${GLPI_API_URL}/Ticket/${ticketId}/Document`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+
+    if (!docItemRes.ok) return null;
+    const documents = await docItemRes.json();
+    
+    // Cari dokumen yang namanya mengandung 'idcard' dan formatnya png/jpg
+    const idCardDoc = documents.find(doc => 
+      doc.name.toLowerCase().includes('id card') || 
+      doc.filename.toLowerCase().includes('idcard')
+    );
+
+    if (!idCardDoc) return null;
+
+    // 2. Download file aslinya
+    // Di GLPI API, GET /Document/:id mengembalikan file jika kita tambahkan parameter alt=media
+    const fileRes = await fetch(`${GLPI_API_URL}/Document/${idCardDoc.id}?alt=media`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+
+    if (!fileRes.ok) return null;
+    const blob = await fileRes.blob();
+
+    // 3. Konversi Blob ke DataURL (Base64) agar bisa langsung ditampilkan di <img>
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+
+  } catch (err) {
+    console.error('[Sync] Gagal sinkronisasi foto dari GLPI:', err);
+    return null;
+  }
 }
 
 export function updateEmployee(id, updates) {
