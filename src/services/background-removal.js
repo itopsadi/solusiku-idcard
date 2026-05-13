@@ -16,17 +16,17 @@ export async function removeBackground(imageDataURL, onProgress) {
     img.src = imageDataURL;
   });
 
-  const maxDim = 512; // Sufficient for clean mask analysis
+  const MAX_DIM = 800; 
   let width = img.width;
   let height = img.height;
 
-  if (width > maxDim || height > maxDim) {
+  if (width > MAX_DIM || height > MAX_DIM) {
     if (width > height) {
-      height *= maxDim / width;
-      width = maxDim;
+      height *= MAX_DIM / width;
+      width = MAX_DIM;
     } else {
-      width *= maxDim / height;
-      height = maxDim;
+      width *= MAX_DIM / height;
+      height = MAX_DIM;
     }
   }
 
@@ -34,6 +34,13 @@ export async function removeBackground(imageDataURL, onProgress) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
+  
+  // Aktifkan smoothing kualitas tinggi
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  // Tambahkan sedikit penajaman agar foto lebih "pop" dan tidak blur
+  ctx.filter = 'contrast(1.05) brightness(1.02)';
   ctx.drawImage(img, 0, 0, width, height);
 
   const inputBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
