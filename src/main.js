@@ -77,6 +77,21 @@ document.addEventListener('click', (e) => {
     closeSidebar();
   }
 
+  // Global Refresh Button
+  if (e.target.closest('#btn-refresh-global')) {
+    const btn = e.target.closest('#btn-refresh-global');
+    btn.style.animation = 'spin 0.8s linear infinite';
+    // Gunakan getEmployees(true) untuk paksa ambil data baru
+    getEmployees(true).then(() => {
+      // Re-init router to refresh current page
+      initRouter();
+      btn.style.animation = '';
+    }).catch(() => {
+      btn.style.animation = '';
+    });
+    return;
+  }
+
   // Logout handling
   if (e.target.closest('#btn-logout')) {
     e.preventDefault();

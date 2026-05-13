@@ -444,8 +444,8 @@ export async function fetchGLPITickets() {
   }
 }
 
-export async function getEmployees() {
-  if (!dataLoaded) await fetchGLPITickets();
+export async function getEmployees(force = false) {
+  if (!dataLoaded || force) await fetchGLPITickets();
   return [...employees];
 }
 
