@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-icon.svg', 'pwa-icon-512.png'],
       manifest: {
         name: 'IT OPS - SOLUSIKU ID Card Control Center',
         short_name: 'IT OPS Solusiku',
@@ -29,10 +29,15 @@ export default defineConfig({
             purpose: 'any'
           },
           {
-            src: 'pwa-icon.svg',
+            src: 'pwa-icon-512.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-icon-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'maskable'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       },

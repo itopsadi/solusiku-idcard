@@ -123,7 +123,50 @@ async function initApp() {
   initRouter();
 }
 
+// --- PWA Installation Logic ---
+let deferredPrompt;
+const installContainer = document.getElementById('pwa-install-container');
+const installBtn = document.getElementById('pwa-install-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  // Stash the event so it can be triggered later.
+  deferredPrompt = e;
+  // Update UI notify the user they can install the PWA
+  if (installContainer) {
+    installContainer.style.display = 'block';
+  }
+});
+
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`[PWA] User response to install prompt: ${outcome}`);
+    // We've used the prompt, and can't use it again, throw it away
+    deferredPrompt = null;
+    // Hide the install button
+    if (installContainer) {
+      installContainer.style.display = 'none';
+    }
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  // Clear the deferredPrompt so it can be garbage collected
+  deferredPrompt = null;
+  // Hide the install button
+  if (installContainer) {
+    installContainer.style.display = 'none';
+  }
+  console.log('[PWA] App was installed successfully');
+});
+
 initApp();
 
-console.log('%c🪪 ID Card Control Center', 'color:#6366f1;font-size:14px;font-weight:bold');
-console.log('%c   Solusiku IT Operations', 'color:#06b6d4;font-size:11px');
+console.log('%c🪪 ID Card Control Center', 'color:#b91c1c;font-size:14px;font-weight:bold');
+console.log('%c   Solusiku IT Operations', 'color:#ef4444;font-size:11px');
