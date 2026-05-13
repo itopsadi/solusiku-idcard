@@ -284,6 +284,9 @@ export async function renderDetail(container, empId) {
     container.querySelectorAll('.tabs').forEach(t => t.style.display = 'none');
     processingEl.style.display = 'block';
 
+    // Small delay to let browser render the loading state
+    await new Promise(r => setTimeout(r, 100));
+
     // Process background removal
     const progressFill = container.querySelector('#progress-fill');
     const processText = container.querySelector('#processing-text');
