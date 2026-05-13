@@ -77,17 +77,34 @@ document.addEventListener('click', (e) => {
     closeSidebar();
   }
 
-  // Global Refresh Button
-  if (e.target.closest('#btn-refresh-global')) {
-    const btn = e.target.closest('#btn-refresh-global');
-    btn.style.animation = 'spin 0.8s linear infinite';
-    // Gunakan getEmployees(true) untuk paksa ambil data baru
+  // Global Refresh Button (Top bar or Sidebar)
+  if (e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar')) {
+    const btn = e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar');
+    const icon = btn.querySelector('svg');
+    const loadingOverlay = document.getElementById('global-loading');
+    
+    // Tampilkan loading di tengah layar
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'flex';
+    }
+    
+    if (icon) icon.style.animation = 'spin 1s linear infinite';
+
+    // Timeout safety: Tutup loading setelah 10 detik jika tidak selesai-selesai
+    const timeout = setTimeout(() => {
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      if (icon) icon.style.animation = '';
+    }, 10000);
+
     getEmployees(true).then(() => {
-      // Re-init router to refresh current page
+      clearTimeout(timeout);
       initRouter();
-      btn.style.animation = '';
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      if (icon) icon.style.animation = '';
     }).catch(() => {
-      btn.style.animation = '';
+      clearTimeout(timeout);
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      if (icon) icon.style.animation = '';
     });
     return;
   }
@@ -108,7 +125,8 @@ async function initApp() {
   if (sessionToken) {
     document.body.classList.remove('logged-out');
     
-    // Tampilkan profil pengguna
+    // Paksa ambil data terbaru dari GLPI saat startup
+    getEmployees(true);
     try {
       const pStr = localStorage.getItem('solusiku_user_profile') || sessionStorage.getItem('solusiku_user_profile');
       if (pStr) {
