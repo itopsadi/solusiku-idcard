@@ -191,27 +191,48 @@ export async function loginUser(username, password, rememberMe = true) {
 
     let allowed = false;
     let allowedGroupName = '';
+
     if (groupsRes.ok) {
       const groupsData = await groupsRes.json();
-      if (groupsData && groupsData.data && Array.isArray(groupsData.data)) {
-        for (const g of groupsData.data) {
-          const groupName = (g['1'] || '').toLowerCase();
-          if (groupName.includes('it operations') || groupName.includes('hr') || groupName.includes('general affair')) {
+      // Handle various GLPI search result formats
+      const dataRows = (groupsData && groupsData.data) ? groupsData.data : (Array.isArray(groupsData) ? groupsData : []);
+
+      if (Array.isArray(dataRows)) {
+        for (const g of dataRows) {
+          // Field '1' is typically the group name when expand_dropdowns=true
+          const groupName = (g['1'] || g.name || '').toString().toLowerCase();
+          if (
+            groupName.includes('it operations') ||
+            groupName.includes('it operation') ||
+            groupName.includes('hrga') ||
+            groupName.includes('hr') ||
+            groupName.includes('general affair') ||
+            groupName.includes('ga')
+          ) {
             allowed = true;
-            allowedGroupName = g['1'];
+            allowedGroupName = g['1'] || g.name;
             break;
           }
         }
       }
     }
 
-    // Fallback: Cek Profil Aktif jika nama grup tidak terdeteksi atau sistem pencarian berbeda
+    // Fallback: Cek Profil Aktif (Sangat berguna jika pencarian grup gagal)
     const activeProfile = (sessionData.session.glpiactiveprofile || {}).name || '';
     if (!allowed && activeProfile) {
-        const pName = activeProfile.toLowerCase();
-        if (pName.includes('it operations') || pName.includes('hr') || pName.includes('general affair') || pName.includes('admin') || pName.includes('super-admin')) {
-            allowed = true;
-        }
+      const pName = activeProfile.toLowerCase();
+      if (
+        pName.includes('it operations') ||
+        pName.includes('it operation') ||
+        pName.includes('admin') ||
+        pName.includes('super-admin') ||
+        pName.includes('technician') ||
+        pName.includes('teknisi') ||
+        pName.includes('hr') ||
+        pName.includes('general affair')
+      ) {
+        allowed = true;
+      }
     }
 
     if (!allowed) {
@@ -230,13 +251,13 @@ export async function loginUser(username, password, rememberMe = true) {
 
     const avatar = fullName.substring(0, 2).toUpperCase();
     let displayRole = activeProfile || 'User';
-    
+
     const userProfile = {
       name: fullName,
       avatar: avatar,
       role: allowedGroupName ? `${allowedGroupName} • ${displayRole}` : displayRole
     };
-    
+
     if (rememberMe) {
       localStorage.setItem('solusiku_user_profile', JSON.stringify(userProfile));
       localStorage.setItem('solusiku_user_session', sessionToken);
@@ -259,7 +280,7 @@ export function logoutUser() {
     fetch(`${GLPI_API_URL}/killSession`, {
       method: 'GET',
       headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': sessionToken }
-    }).catch(() => {});
+    }).catch(() => { });
   }
   localStorage.removeItem('solusiku_user_session');
   localStorage.removeItem('solusiku_user_profile');
@@ -294,7 +315,7 @@ export async function fetchGLPITickets() {
     dataLoaded = true;
     return employees;
   }
-  
+
   try {
     const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-100&expand_dropdowns=true&sort=id&order=DESC`, {
       headers: {
@@ -317,14 +338,14 @@ export async function fetchGLPITickets() {
     const glpiEmployees = onboardingTickets.map(t => {
       const id = `glpi-${t.id}`;
       const existing = localData.find(e => e.id === id) || {};
-      
+
       // --- SMART PARSER FORM ONBOARDING ---
       // Konversi <br> menjadi newline, lalu hapus sisa tag HTML tanpa menambah newline ekstra
       const contentText = (t.content || '')
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n')
         .replace(/<[^>]*>?/gm, '');
-      
+
       const nameMatch = contentText.match(/1\)\s*Nama Lengkap Karyawan\s*:\s*([^\n]+)/i);
       const nikMatch = contentText.match(/2\)\s*Kode Karyawan Baru\s*:\s*([^\n]+)/i);
       const deptMatch = contentText.match(/3\)\s*Departement Karyawan\s*:\s*([^\n]+)/i);
@@ -345,9 +366,9 @@ export async function fetchGLPITickets() {
 
       return {
         id: id,
-        name: empName, 
-        jabatan: jabatanMatch ? jabatanMatch[1].trim() : (t.itilcategories_id || 'Staff'), 
-        nik: nikMatch ? nikMatch[1].trim() : `GLPI-${t.id}`, 
+        name: empName,
+        jabatan: jabatanMatch ? jabatanMatch[1].trim() : (t.itilcategories_id || 'Staff'),
+        nik: nikMatch ? nikMatch[1].trim() : `GLPI-${t.id}`,
         department: deptMatch ? deptMatch[1].trim() : (t.entities_id || '-'),
         location: lokasiMatch ? lokasiMatch[1].trim() : '-',
         status: finalStatus,
@@ -357,7 +378,7 @@ export async function fetchGLPITickets() {
         processedPhoto: existing.processedPhoto || null,
       };
     });
-    
+
     employees = glpiEmployees;
     saveData(employees);
     dataLoaded = true;
@@ -456,7 +477,7 @@ export async function uploadToGLPI(ticketId, blob) {
       },
       body: formData
     });
-    
+
     if (!docRes.ok) throw new Error('Document upload failed');
     const docData = await docRes.json();
     const docId = docData.id;
@@ -475,7 +496,7 @@ export async function uploadToGLPI(ticketId, blob) {
         input: { documents_id: docId, items_id: ticketNum, itemtype: 'Ticket' }
       })
     });
-    
+
     // 3. Mark Ticket as Solved (status 5)
     await fetch(`${GLPI_API_URL}/Ticket/${ticketNum}`, {
       method: 'PUT',
@@ -499,14 +520,14 @@ export async function uploadToGLPI(ticketId, blob) {
 export async function uploadGlobalLogo(dataURL) {
   const session = await getSession();
   if (!GLPI_API_URL || GLPI_API_URL.includes('localhost') || !session) return false;
-  
+
   try {
     // 1. Cek apakah tiket config sudah ada
     const searchRes = await fetch(`${GLPI_API_URL}/search/Ticket?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]=SOLUSIKU_APP_CONFIG`, {
       headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
     });
     const searchData = await searchRes.json();
-    
+
     // Kita simpan base64 string dalam tag HTML agar tidak rusak
     const contentPayload = `<!--LOGO_START-->${dataURL}<!--LOGO_END-->`;
 
@@ -553,23 +574,23 @@ export async function uploadGlobalLogo(dataURL) {
 export async function fetchGlobalLogo() {
   const session = await getSession();
   if (!GLPI_API_URL || GLPI_API_URL.includes('localhost') || !session) return null;
-  
+
   try {
     const searchRes = await fetch(`${GLPI_API_URL}/search/Ticket?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]=SOLUSIKU_APP_CONFIG&sort=id&order=DESC`, {
       headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
     });
     const searchData = await searchRes.json();
     if (!searchData.data || searchData.data.length === 0) return null;
-    
+
     const ticketId = searchData.data[0]['2'];
-    
+
     const ticketRes = await fetch(`${GLPI_API_URL}/Ticket/${ticketId}`, {
       headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
     });
-    
+
     if (!ticketRes.ok) return null;
     const ticketData = await ticketRes.json();
-    
+
     const content = ticketData.content || '';
     const match = content.match(/<!--LOGO_START-->(.*?)<!--LOGO_END-->/);
     if (match && match[1]) {
