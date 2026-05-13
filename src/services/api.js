@@ -96,6 +96,7 @@ function saveData(data) {
 // In-memory store for employee metadata
 let employees = [];
 let dataLoaded = false;
+let isFetching = null; // Lock for concurrent fetches
 
 // --- IndexedDB Setup for Large Photos ---
 const dbPromise = new Promise((resolve, reject) => {
@@ -445,7 +446,14 @@ export async function fetchGLPITickets() {
 }
 
 export async function getEmployees(force = false) {
-  if (!dataLoaded || force) await fetchGLPITickets();
+  if (isFetching) return isFetching; // Return existing promise if fetching
+  
+  if (!dataLoaded || force) {
+    isFetching = fetchGLPITickets().finally(() => {
+      isFetching = null;
+    });
+    await isFetching;
+  }
   return [...employees];
 }
 

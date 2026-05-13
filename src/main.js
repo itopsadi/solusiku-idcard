@@ -125,8 +125,12 @@ async function initApp() {
   if (sessionToken) {
     document.body.classList.remove('logged-out');
     
-    // Paksa ambil data terbaru dari GLPI saat startup
-    getEmployees(true);
+    // Paksa ambil data terbaru dari GLPI saat startup dan TUNGGU sampai selesai
+    try {
+      await getEmployees(true);
+    } catch (e) {
+      console.error('Initial data fetch failed:', e);
+    }
     try {
       const pStr = localStorage.getItem('solusiku_user_profile') || sessionStorage.getItem('solusiku_user_profile');
       if (pStr) {
