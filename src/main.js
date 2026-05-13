@@ -5,7 +5,7 @@ import { renderApproval } from './screens/approval.js';
 import { renderSettings } from './screens/settings.js';
 import { renderFinished } from './screens/finished.js';
 import { renderLogin } from './screens/login.js';
-import { logoutUser, fetchGlobalLogo } from './services/api.js';
+import { logoutUser, fetchGlobalLogo, getStats } from './services/api.js';
 import { setLogo } from './templates/idcard.js';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -165,6 +165,51 @@ window.addEventListener('appinstalled', () => {
   }
   console.log('[PWA] App was installed successfully');
 });
+
+// --- Polling & Notification Logic ---
+let lastPendingCount = -1;
+
+async function checkNotifications() {
+  const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
+  if (!sessionToken) return;
+
+  try {
+    const stats = await getStats();
+    const currentPending = stats.pending || 0;
+    
+    // Update Sidebar Badge
+    const badge = document.getElementById('nav-badge-pending');
+    if (badge) {
+      badge.textContent = currentPending;
+      badge.style.display = currentPending > 0 ? 'inline-block' : 'none';
+    }
+
+    // Trigger Notification if count increased
+    if (lastPendingCount !== -1 && currentPending > lastPendingCount) {
+      if (Notification.permission === 'granted') {
+        new Notification('IT OPS Solusiku', {
+          body: `Ada ${currentPending - lastPendingCount} data baru menunggu foto!`,
+          icon: '/favicon.svg'
+        });
+      }
+    }
+    lastPendingCount = currentPending;
+  } catch (err) {
+    console.error('Polling error:', err);
+  }
+}
+
+// Request permission and start polling
+if ('Notification' in window) {
+  if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+// Check every 3 minutes (180000 ms)
+setInterval(checkNotifications, 180000);
+// Initial check
+checkNotifications();
 
 initApp();
 
