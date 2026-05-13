@@ -200,17 +200,25 @@ export async function loginUser(username, password, rememberMe = true) {
       if (Array.isArray(dataRows)) {
         for (const g of dataRows) {
           // Field '1' is typically the group name when expand_dropdowns=true
-          const groupName = (g['1'] || g.name || '').toString().toLowerCase();
+          // Handle both string and object formats (some GLPI versions return {id: X, name: Y})
+          let val = g['1'] || g.name || '';
+          let rawName = (typeof val === 'object' && val !== null) ? (val.name || '') : val;
+          const groupName = rawName.toString().toLowerCase();
+          
+          console.log('[Auth] Checking Group:', groupName);
+
           if (
             groupName.includes('it operations') ||
             groupName.includes('it operation') ||
+            groupName.includes('it ops') ||
             groupName.includes('hrga') ||
+            groupName.includes('human resource') ||
             groupName.includes('hr') ||
             groupName.includes('general affair') ||
             groupName.includes('ga')
           ) {
             allowed = true;
-            allowedGroupName = g['1'] || g.name;
+            allowedGroupName = rawName;
             break;
           }
         }
@@ -228,6 +236,8 @@ export async function loginUser(username, password, rememberMe = true) {
         pName.includes('super-admin') ||
         pName.includes('technician') ||
         pName.includes('teknisi') ||
+        pName.includes('hrga') ||
+        pName.includes('human resource') ||
         pName.includes('hr') ||
         pName.includes('general affair')
       ) {
