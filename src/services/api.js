@@ -412,10 +412,19 @@ export async function fetchGLPITickets() {
       // Title Case
       empName = empName.replace(/\b\w/g, c => c.toUpperCase());
 
-      // If status is closed or solved in GLPI, force local status to 'approved'
+      // Logic Sinkronisasi Status:
       let finalStatus = existing.status || 'waiting_photo';
+
       if (t.status === 5 || t.status === 6) {
+        // Jika di GLPI sudah Solved/Closed, maka di aplikasi WAJIB 'approved'
         finalStatus = 'approved';
+      } else if (t.status === 2) {
+        // Jika di GLPI statusnya 'Assigned' (2), tapi di aplikasi lokal 'approved',
+        // ini berarti tiket dibuka kembali atau di-revert oleh user.
+        // Maka kita turunkan kembali statusnya agar bisa diproses ulang.
+        if (finalStatus === 'approved') {
+          finalStatus = 'waiting_photo';
+        }
       }
 
       return {
