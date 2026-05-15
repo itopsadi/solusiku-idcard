@@ -929,9 +929,42 @@ body {
     padding-bottom: 74px; /* Space for bottom nav */
   }
   
-  #page-container { padding: 16px; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .page-header h1 { font-size: 1.4rem; }
+  #page-container { padding: 12px; }
+  
+  .stats-grid { 
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 6px; 
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    padding: 8px 4px;
+    text-align: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .stat-card .stat-icon {
+    width: 24px; height: 24px;
+    font-size: 0.9rem;
+    margin: 0 auto 4px;
+  }
+
+  .stat-value {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-header h1 { font-size: 1.2rem; }
+  .page-header p { font-size: 0.75rem; }
+
   .approval-actions { flex-direction: column; }
 
   /* Mobile Table to Card Layout */
@@ -942,11 +975,11 @@ body {
     display: none;
   }
   .data-table tr {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-secondary);
-    padding: 12px;
+    padding: 10px;
     box-shadow: var(--shadow-sm);
   }
   .data-table td {
