@@ -11,6 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-icon.svg', 'pwa-icon-512.png'],
       manifest: {
+        id: 'id.solusiku.idcard',
         name: 'IT OPS - SOLUSIKU ID Card Control Center',
         short_name: 'IT OPS Solusiku',
         description: 'ID Card Automation & Control Center untuk IT Operations Solusiku',
@@ -18,20 +19,15 @@ export default defineConfig({
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '.',
         scope: '/',
         lang: 'id',
         icons: [
           {
             src: 'pwa-icon.svg',
-            sizes: '192x192',
+            sizes: '192x192 512x512',
             type: 'image/svg+xml',
-            purpose: 'any'
-          },
-          {
-            src: 'pwa-icon-512.png',
-            sizes: '192x192',
-            type: 'image/png'
+            purpose: 'any maskable'
           },
           {
             src: 'pwa-icon-512.png',
