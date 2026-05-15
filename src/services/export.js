@@ -45,29 +45,39 @@ export async function exportToImage(element, dpi = 300) {
     pixelRatio: scaleFactor,
     cacheBust: true,
     style: {
-      transform: 'scale(1)',
-      transformOrigin: 'top left'
+      transform: 'none',
+      transformOrigin: 'top left',
+      margin: '0',
+      padding: '0'
     }
   };
 
   try {
-    // 1. Wait for images to be ready
+    // 1. Wait for images and fonts to be ready
     await waitUntilImagesLoaded(element);
+    if (document.fonts) await document.fonts.ready;
 
-    // 2. Get as Data URL
+    // 2. Force a quick layout repaint
+    element.style.display = 'none';
+    element.offsetHeight; // force reflow
+    element.style.display = 'block';
+
+    // 3. Get as Data URL
     const dataURL = await toPng(element, options);
     
-    if (!dataURL || dataURL === 'data:,' || dataURL.length < 100) {
-      throw new Error('Hasil tangkapan gambar kosong. Pastikan template terlihat jelas di layar.');
+    if (!dataURL || dataURL === 'data:,' || dataURL.length < 500) {
+      // Retry once after a short delay
+      await new Promise(r => setTimeout(r, 200));
+      const retryURL = await toPng(element, options);
+      if (!retryURL || retryURL.length < 500) {
+        throw new Error('Hasil tangkapan gambar kosong. Coba lagi atau pastikan koneksi stabil.');
+      }
+      return { blob: dataURLToBlob(retryURL), dataURL: retryURL, width: element.clientWidth * scaleFactor, height: element.clientHeight * scaleFactor };
     }
 
-    // 3. Convert Data URL to Blob manually
+    // 4. Convert Data URL to Blob manually
     const blob = dataURLToBlob(dataURL);
     
-    if (!blob || blob.size === 0) {
-      throw new Error('Gagal mengonversi gambar ke file (0 byte).');
-    }
-
     const width = element.clientWidth * scaleFactor;
     const height = element.clientHeight * scaleFactor;
 
