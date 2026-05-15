@@ -1,4 +1,4 @@
-import { toPng, toBlob } from 'html-to-image';
+import html2canvas from 'html2canvas';
 
 /**
  * Robust conversion of DataURL to Blob
@@ -29,62 +29,61 @@ async function waitUntilImagesLoaded(element) {
     if (img.complete) return Promise.resolve();
     return new Promise(resolve => {
       img.onload = resolve;
-      img.onerror = resolve; // Continue even if image fails
+      img.onerror = resolve;
     });
   });
   return Promise.all(promises);
 }
 
 /**
- * Export a DOM element as high-resolution PNG
+ * Export a DOM element as high-resolution PNG using html2canvas
  */
 export async function exportToImage(element, dpi = 300) {
-  const scaleFactor = dpi / 96;
+  const scale = dpi / 96;
   
-  const options = {
-    pixelRatio: scaleFactor,
-    cacheBust: true,
-    style: {
-      transform: 'none',
-      transformOrigin: 'top left',
-      margin: '0',
-      padding: '0'
-    }
-  };
-
   try {
-    // 1. Wait for images and fonts to be ready
+    // 1. Wait for readiness
     await waitUntilImagesLoaded(element);
     if (document.fonts) await document.fonts.ready;
 
-    // 2. Force a quick layout repaint
-    element.style.display = 'none';
-    element.offsetHeight; // force reflow
-    element.style.display = 'block';
-
-    // 3. Get as Data URL
-    const dataURL = await toPng(element, options);
-    
-    if (!dataURL || dataURL === 'data:,' || dataURL.length < 500) {
-      // Retry once after a short delay
-      await new Promise(r => setTimeout(r, 200));
-      const retryURL = await toPng(element, options);
-      if (!retryURL || retryURL.length < 500) {
-        throw new Error('Hasil tangkapan gambar kosong. Coba lagi atau pastikan koneksi stabil.');
+    // 2. Capture using html2canvas (more robust for mobile)
+    const canvas = await html2canvas(element, {
+      scale: scale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+      logging: false,
+      onclone: (clonedDoc) => {
+        // Ensure the element in the clone is visible and has no transforms
+        const clonedElement = clonedDoc.querySelector('.idcard');
+        if (clonedElement) {
+          clonedElement.style.transform = 'none';
+          clonedElement.style.margin = '0';
+          clonedElement.style.position = 'relative';
+          clonedElement.style.display = 'block';
+        }
       }
-      return { blob: dataURLToBlob(retryURL), dataURL: retryURL, width: element.clientWidth * scaleFactor, height: element.clientHeight * scaleFactor };
+    });
+
+    // 3. Get Data URL from canvas
+    const dataURL = canvas.toDataURL('image/png');
+    
+    if (!dataURL || dataURL.length < 500) {
+      throw new Error('Canvas render failed to produce valid data.');
     }
 
-    // 4. Convert Data URL to Blob manually
+    // 4. Convert to Blob
     const blob = dataURLToBlob(dataURL);
-    
-    const width = element.clientWidth * scaleFactor;
-    const height = element.clientHeight * scaleFactor;
 
-    return { blob, dataURL, width, height };
+    return { 
+      blob, 
+      dataURL, 
+      width: canvas.width, 
+      height: canvas.height 
+    };
   } catch (err) {
-    console.error('Export service error:', err);
-    throw err;
+    console.error('html2canvas Export Error:', err);
+    throw new Error('Gagal merender ID Card: ' + err.message);
   }
 }
 
