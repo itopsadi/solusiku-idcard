@@ -1,7 +1,7 @@
 import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmployee } from '../services/api.js';
 import { exportToImage, downloadFile } from '../services/export.js';
 import { triggerWebhook } from '../services/webhook.js';
-import { renderIDCard } from '../templates/idcard.js';
+import { renderIDCard, getLogo } from '../templates/idcard.js';
 import { navigate } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import { formatDate, getTicketUrl } from '../utils/helpers.js';
@@ -36,11 +36,11 @@ export async function renderApproval(container, empId) {
       </div>
       ` : ''}
 
-      <!-- ID Card Preview -->
-      <div class="idcard-preview-wrapper" style="width:100%; display:flex; justify-content:center; padding:10px 0; overflow:hidden;">
-        <div class="idcard-preview-scale-container" style="display:flex; justify-content:center; align-items:center;">
-          <div class="idcard-preview-frame" style="width:324px; height:514px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.15); border-radius:8px; background:#fff; overflow:hidden; flex-shrink:0;">
-            <div id="idcard-render"></div>
+      <!-- ID Card Preview Area (v3) -->
+      <div class="idcard-preview-wrapper-v3" style="width:100%; display:grid; place-items:center; padding:20px 0; overflow:visible; min-height:350px;">
+        <div class="idcard-preview-scale-container-v3" style="display:grid; place-items:center; transform-origin: center center; transition: transform 0.2s ease;">
+          <div class="idcard-preview-frame-v3" style="width:324px; height:514px; position:relative; box-shadow:0 25px 70px rgba(0,0,0,0.22); border-radius:12px; background:#fff; overflow:hidden; flex-shrink:0;">
+            <div id="idcard-render" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; margin:0 !important; padding:0 !important;"></div>
           </div>
         </div>
       </div>
@@ -103,13 +103,21 @@ export async function renderApproval(container, empId) {
     nik: emp.nik,
     photo: photoToUse,
   });
+
+  // Set data for manual canvas export
+  card.dataset.name = emp.name;
+  card.dataset.jabatan = emp.jabatan;
+  card.dataset.nik = emp.nik;
+  card.dataset.photo = photoToUse;
+  card.dataset.logo = getLogo();
+
   idcardEl.appendChild(card);
 
   // Auto-scale preview to fit screen width
   const scalePreview = () => {
-    const wrapper = container.querySelector('.idcard-preview-wrapper');
-    const scaleContainer = container.querySelector('.idcard-preview-scale-container');
-    const frame = container.querySelector('.idcard-preview-frame');
+    const wrapper = container.querySelector('.idcard-preview-wrapper-v3');
+    const scaleContainer = container.querySelector('.idcard-preview-scale-container-v3');
+    const frame = container.querySelector('.idcard-preview-frame-v3');
     
     if (!wrapper || !scaleContainer || !frame) return;
     
@@ -120,11 +128,13 @@ export async function renderApproval(container, empId) {
     if (availableWidth < cardWidth) {
       const scale = availableWidth / cardWidth;
       scaleContainer.style.transform = `scale(${scale})`;
-      // Adjust height of wrapper to prevent empty space
-      wrapper.style.height = `${514 * scale + 20}px`;
+      
+      const visualHeight = 514 * scale;
+      wrapper.style.height = `${visualHeight + 60}px`;
+      wrapper.style.minHeight = '0';
     } else {
       scaleContainer.style.transform = 'scale(1)';
-      wrapper.style.height = 'auto';
+      wrapper.style.height = '600px';
     }
   };
 
