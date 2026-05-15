@@ -1,5 +1,5 @@
 import { getEmployees } from '../services/api.js';
-import { statusBadge, debounce, formatDate } from '../utils/helpers.js';
+import { statusBadge, debounce, formatDate, getTicketUrl } from '../utils/helpers.js';
 import { navigate } from '../utils/router.js';
 
 export async function renderFinished(container) {
@@ -78,7 +78,11 @@ function renderRows(employees) {
       </td>
       <td data-label="Departemen" style="color:var(--text-muted);font-size:0.85rem">${emp.department || '-'}</td>
       <td data-label="NIK"><span class="emp-nik">${emp.nik}</span></td>
-      <td data-label="Ticket"><span class="emp-nik">${emp.ticketId}</span></td>
+      <td data-label="Ticket">
+        <a href="${getTicketUrl(emp.ticketId)}" target="_blank" class="ticket-link" onclick="event.stopPropagation()">
+          ${emp.ticketId}
+        </a>
+      </td>
       <td data-label="Status">${statusBadge(emp.status)}</td>
       <td data-label="Tanggal" style="color:var(--text-muted);font-size:0.82rem">${formatDate(emp.createdAt)}</td>
     </tr>

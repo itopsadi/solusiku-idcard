@@ -3,7 +3,7 @@ import { initCamera, capturePhoto, switchCamera, stopCamera, isCameraSupported, 
 // currentFacing is accessed via getCurrentFacing()
 import { removeBackground } from '../services/background-removal.js';
 import { triggerWebhook } from '../services/webhook.js';
-import { statusBadge, formatDate, blobToDataURL } from '../utils/helpers.js';
+import { statusBadge, formatDate, blobToDataURL, getTicketUrl } from '../utils/helpers.js';
 import { navigate } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import Cropper from 'cropperjs';
@@ -43,7 +43,13 @@ export async function renderDetail(container, empId) {
           <div class="info-row"><span class="info-label">Jabatan</span><span class="info-value">${emp.jabatan}</span></div>
           <div class="info-row"><span class="info-label">NIK</span><span class="info-value">${emp.nik}</span></div>
           <div class="info-row"><span class="info-label">Departemen</span><span class="info-value">${emp.department}</span></div>
-          <div class="info-row"><span class="info-label">Ticket GLPI</span><span class="info-value">${emp.ticketId}</span></div>
+          <div class="info-row"><span class="info-label">Ticket GLPI</span>
+            <span class="info-value">
+              <a href="${getTicketUrl(emp.ticketId)}" target="_blank" class="ticket-link-detail">
+                ${emp.ticketId}
+              </a>
+            </span>
+          </div>
           <div class="info-row"><span class="info-label">Status</span>${statusBadge(emp.status)}</div>
           <div class="info-row"><span class="info-label">Tanggal</span><span class="info-value" style="font-size:0.82rem">${formatDate(emp.createdAt)}</span></div>
         </div>

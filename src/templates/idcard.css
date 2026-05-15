@@ -124,26 +124,26 @@
 /* Layer 1: Shoulders clipped perfectly inside the circle */
 .idcard-photo-clip {
   position: absolute;
-  top: 6px; left: 6px; right: 6px; bottom: 6px; /* 6px gap all around */
+  top: 0; left: 0; right: 0; bottom: 0; /* Removed 6px gap to fill circle completely */
   border-radius: 50%;
   overflow: hidden;
   z-index: 13;
-  background-size: 280px 380px;
+  background-size: 295px 400px; /* Increased from 280x380 for better coverage */
   background-repeat: no-repeat;
   background-position: bottom center;
 }
 
-/* Layer 2: Head popping out (cut exactly at 10% from top of circle to guarantee shoulders are clipped) */
+/* Layer 2: Head popping out */
 .idcard-photo-pop {
   position: absolute;
-  width: 280px;
-  height: 380px;
-  bottom: 6px;         /* Match gap */
+  width: 295px; /* Increased to match clip layer */
+  height: 400px; /* Increased to match clip layer */
+  bottom: 0;    /* Match gap removal */
   left: 50%;
   transform: translateX(-50%);
-  clip-path: polygon(0 0, 100% 0, 100% 65%, 0 65%); /* Lowered cut line to prevent clipping neck */
+  clip-path: polygon(0 0, 100% 0, 100% 65%, 0 65%);
   z-index: 14;
-  background-size: 280px 380px;
+  background-size: 295px 400px;
   background-repeat: no-repeat;
   background-position: bottom center;
 }

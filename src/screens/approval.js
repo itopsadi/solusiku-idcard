@@ -4,7 +4,7 @@ import { triggerWebhook } from '../services/webhook.js';
 import { renderIDCard } from '../templates/idcard.js';
 import { navigate } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
-import { formatDate } from '../utils/helpers.js';
+import { formatDate, getTicketUrl } from '../utils/helpers.js';
 
 export async function renderApproval(container, empId) {
   const emp = await getEmployee(empId);
@@ -65,7 +65,11 @@ export async function renderApproval(container, empId) {
           <div><span class="info-label">Nama</span><br/><strong>${emp.name}</strong></div>
           <div><span class="info-label">Jabatan</span><br/><strong>${emp.jabatan}</strong></div>
           <div><span class="info-label">NIK</span><br/><strong>${emp.nik}</strong></div>
-          <div><span class="info-label">Ticket</span><br/><strong>${emp.ticketId}</strong></div>
+          <div><span class="info-label">Ticket</span><br/>
+            <a href="${getTicketUrl(emp.ticketId)}" target="_blank" class="ticket-link-detail">
+              <strong>${emp.ticketId}</strong>
+            </a>
+          </div>
         </div>
       </div>
 

@@ -45,3 +45,8 @@ export function dataURLtoBlob(dataURL) {
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
   return new Blob([arr], { type: mime });
 }
+export function getTicketUrl(ticketId) {
+  if (!ticketId) return '#';
+  const id = ticketId.replace('GLPI-', '').trim();
+  return `https://glpi.cb2.07.solusiku/front/ticket.form.php?id=${id}`;
+}
