@@ -609,7 +609,10 @@ export async function uploadToGLPI(ticketId, blob) {
       body: formData
     });
 
-    if (!docRes.ok) throw new Error('Document upload failed');
+    if (!docRes.ok) {
+      const errText = await docRes.text();
+      throw new Error(`Upload dokumen ke GLPI gagal (${docRes.status}): ${errText}`);
+    }
     const docData = await docRes.json();
     const docId = docData.id;
 
