@@ -37,15 +37,15 @@ export async function renderApproval(container, empId) {
       ` : ''}
 
       <!-- ID Card Preview -->
-      <div class="idcard-preview-wrapper">
-        <div class="idcard-preview-frame">
-          <div id="idcard-render"></div>
+      <div class="idcard-preview-wrapper" style="width:100%; display:flex; justify-content:center; padding:20px 0;">
+        <div class="idcard-preview-frame" style="width:324px; height:514px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.2); border-radius:8px; background:#fff; overflow:hidden;">
+          <div id="idcard-render" style="transform-origin: top left;"></div>
         </div>
       </div>
 
       <!-- Photo Comparison (hidden by default) -->
-      <div id="photo-comparison" style="display:none">
-        <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">
+      <div id="photo-comparison" style="display:none; width:100%;">
+        <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;padding:20px 0">
           ${emp.photo ? `
           <div style="text-align:center">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:8px">Original</p>
@@ -244,11 +244,17 @@ export async function renderApproval(container, empId) {
 
       try {
         const { blob } = await exportToImage(card, 300);
+        
+        // Save status to local first
         approveEmployee(empId);
         
+        const cleanTicketId = emp.ticketId.replace('GLPI-', '');
         const uploadSuccess = await uploadToGLPI(emp.ticketId, blob);
+        
         if (uploadSuccess) {
-          showToast('Berhasil sinkronisasi dengan GLPI', 'success');
+          showToast('Berhasil approve & upload ke GLPI', 'success');
+        } else {
+          showToast('Approve lokal berhasil, tapi gagal upload ke GLPI. Periksa koneksi.', 'warning');
         }
 
         await triggerWebhook('card_approved', {
@@ -260,7 +266,8 @@ export async function renderApproval(container, empId) {
 
         navigate('/finished');
       } catch (err) {
-        showToast('Terjadi kesalahan: ' + err.message, 'error');
+        console.error('Approve failed:', err);
+        showToast('Gagal memproses approval: ' + err.message, 'error');
         btn.disabled = false;
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg> Approve & Print`;
       }

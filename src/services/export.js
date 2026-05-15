@@ -4,10 +4,10 @@ import { toPng, toBlob } from 'html-to-image';
  * Export a DOM element as high-resolution PNG
  * @param {HTMLElement} element - The element to export
  * @param {number} dpi - Target DPI (default 300)
- * @returns {Promise<{blob: Blob, dataURL: string}>}
+ * @returns {Promise<{blob: Blob, dataURL: string, width: number, height: number}>}
  */
 export async function exportToImage(element, dpi = 300) {
-  const scaleFactor = dpi / 96; // Browser default is 96 DPI
+  const scaleFactor = dpi / 96;
   
   const options = {
     pixelRatio: scaleFactor,
@@ -18,15 +18,22 @@ export async function exportToImage(element, dpi = 300) {
     }
   };
 
-  const dataURL = await toPng(element, options);
-  const blob = await toBlob(element, options);
+  try {
+    // 1. Get as Data URL (more stable than toBlob)
+    const dataURL = await toPng(element, options);
+    
+    // 2. Convert Data URL to Blob manually
+    const response = await fetch(dataURL);
+    const blob = await response.blob();
 
-  // Note: html-to-image doesn't return canvas dimensions directly,
-  // but we know it scales the element's client dimensions
-  const width = element.clientWidth * scaleFactor;
-  const height = element.clientHeight * scaleFactor;
+    const width = element.clientWidth * scaleFactor;
+    const height = element.clientHeight * scaleFactor;
 
-  return { blob, dataURL, width, height };
+    return { blob, dataURL, width, height };
+  } catch (err) {
+    console.error('Export service error:', err);
+    throw new Error('Gagal menangkap gambar template: ' + err.message);
+  }
 }
 
 /**
