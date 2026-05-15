@@ -37,9 +37,11 @@ export async function renderApproval(container, empId) {
       ` : ''}
 
       <!-- ID Card Preview -->
-      <div class="idcard-preview-wrapper" style="width:100%; display:flex; justify-content:center; padding:20px 0;">
-        <div class="idcard-preview-frame" style="width:324px; height:514px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.2); border-radius:8px; background:#fff; overflow:hidden;">
-          <div id="idcard-render" style="transform-origin: top left;"></div>
+      <div class="idcard-preview-wrapper" style="width:100%; display:flex; justify-content:center; padding:10px 0; overflow:hidden;">
+        <div class="idcard-preview-scale-container" style="display:flex; justify-content:center; align-items:center;">
+          <div class="idcard-preview-frame" style="width:324px; height:514px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.15); border-radius:8px; background:#fff; overflow:hidden; flex-shrink:0;">
+            <div id="idcard-render"></div>
+          </div>
         </div>
       </div>
 
@@ -102,6 +104,43 @@ export async function renderApproval(container, empId) {
     photo: photoToUse,
   });
   idcardEl.appendChild(card);
+
+  // Auto-scale preview to fit screen width
+  const scalePreview = () => {
+    const wrapper = container.querySelector('.idcard-preview-wrapper');
+    const scaleContainer = container.querySelector('.idcard-preview-scale-container');
+    const frame = container.querySelector('.idcard-preview-frame');
+    
+    if (!wrapper || !scaleContainer || !frame) return;
+    
+    const padding = 32;
+    const availableWidth = wrapper.clientWidth - padding;
+    const cardWidth = 324;
+    
+    if (availableWidth < cardWidth) {
+      const scale = availableWidth / cardWidth;
+      scaleContainer.style.transform = `scale(${scale})`;
+      // Adjust height of wrapper to prevent empty space
+      wrapper.style.height = `${514 * scale + 20}px`;
+    } else {
+      scaleContainer.style.transform = 'scale(1)';
+      wrapper.style.height = 'auto';
+    }
+  };
+
+  // Run scale on mount and resize
+  setTimeout(scalePreview, 50);
+  window.addEventListener('resize', scalePreview);
+  
+  // Cleanup listener when navigating away
+  const observer = new MutationObserver((mutations) => {
+    if (!document.body.contains(container)) {
+      window.removeEventListener('resize', scalePreview);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
 
   // --- Photo Panning Logic ---
   const photoWrapper = card.querySelector('.idcard-photo-wrapper');
