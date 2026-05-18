@@ -102,6 +102,8 @@ export async function renderApproval(container, empId) {
     jabatan: emp.jabatan,
     nik: emp.nik,
     photo: photoToUse,
+    panX: emp.panX || 0,
+    panY: emp.panY || 0,
   });
 
   // Set data for manual canvas export
@@ -110,6 +112,8 @@ export async function renderApproval(container, empId) {
   card.dataset.nik = emp.nik;
   card.dataset.photo = photoToUse;
   card.dataset.logo = getLogo();
+  card.dataset.panX = emp.panX || 0;
+  card.dataset.panY = emp.panY || 0;
 
   idcardEl.appendChild(card);
 
@@ -162,6 +166,12 @@ export async function renderApproval(container, empId) {
     let startX = 0, startY = 0;
     let currentX = emp.panX || 0;
     let currentY = emp.panY || 0;
+
+    const isApproved = emp.status === 'approved';
+    if (isApproved) {
+      photoWrapper.style.cursor = 'default';
+      photoWrapper.title = 'ID Card sudah di-approve, posisi dikunci.';
+    }
     
     const clipDiv = photoWrapper.querySelector('.idcard-photo-clip');
     const popDiv = photoWrapper.querySelector('.idcard-photo-pop');
@@ -176,23 +186,38 @@ export async function renderApproval(container, empId) {
     // Apply initial saved position
     applyPan();
 
+    // Get current CSS scale factor for drag compensation
+    function getCurrentScale() {
+      const scaleContainer = container.querySelector('.idcard-preview-scale-container-v3');
+      if (!scaleContainer) return 1;
+      const transform = scaleContainer.style.transform;
+      const match = transform.match(/scale\(([^)]+)\)/);
+      return match ? parseFloat(match[1]) : 1;
+    }
+
     function onDragStart(e) {
-      if (e.target.closest('button')) return;
+      if (isApproved || e.target.closest('button')) return;
       isDragging = true;
       photoWrapper.style.cursor = 'grabbing';
       const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
       const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-      startX = clientX - currentX;
-      startY = clientY - currentY;
-      e.preventDefault(); // Prevent default image drag behavior
+      startX = clientX;
+      startY = clientY;
+      e.preventDefault();
     }
 
     function onDragMove(e) {
       if (!isDragging) return;
       const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
       const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-      currentX = clientX - startX;
-      currentY = clientY - startY;
+      const scale = getCurrentScale();
+      // Convert screen-space delta to element-space delta
+      const deltaX = (clientX - startX) / scale;
+      const deltaY = (clientY - startY) / scale;
+      startX = clientX;
+      startY = clientY;
+      currentX += deltaX;
+      currentY += deltaY;
       applyPan();
     }
 
@@ -202,6 +227,10 @@ export async function renderApproval(container, empId) {
       photoWrapper.style.cursor = 'grab';
       // Save position to employee data so it persists
       updateEmployee(empId, { panX: currentX, panY: currentY });
+      
+      // Update dataset for immediate export/download
+      card.dataset.panX = currentX;
+      card.dataset.panY = currentY;
     }
 
     photoWrapper.addEventListener('mousedown', onDragStart);

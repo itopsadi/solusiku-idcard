@@ -73,10 +73,14 @@ export function renderIDCard(data) {
   // Dynamic name font size
   const nameFontSize = getNameFontSize(name);
 
+  const panX = data.panX || 0;
+  const panY = data.panY || 0;
+  const bgPos = `calc(50% + ${panX}px) calc(100% + ${panY}px)`;
+
   const photoHTML = photoSrc
     ? [
-        `<div class="idcard-photo-clip" style="background-image: url('${photoSrc}')"></div>`,
-        `<div class="idcard-photo-pop" style="background-image: url('${photoSrc}')"></div>`
+        `<div class="idcard-photo-clip" style="background-image: url('${photoSrc}'); background-position: ${bgPos}"></div>`,
+        `<div class="idcard-photo-pop" style="background-image: url('${photoSrc}'); background-position: ${bgPos}"></div>`
       ].join('')
     : [
         '<div class="idcard-photo-placeholder">',

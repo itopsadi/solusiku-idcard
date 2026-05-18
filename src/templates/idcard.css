@@ -106,7 +106,8 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  z-index: 11;
+  z-index: 20; /* Must be ABOVE photo-pop (z-index:14) so logo is never covered */
+  position: relative; /* Required for z-index to take effect in flex context */
 }
 
 /* ===== PHOTO AREA ===== */
@@ -138,10 +139,12 @@
   position: absolute;
   width: 295px; /* Increased to match clip layer */
   height: 400px; /* Increased to match clip layer */
-  bottom: 0;    /* Match gap removal */
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  clip-path: polygon(0 0, 100% 0, 100% 65%, 0 65%);
+  /* Clip only the top half of the head area to avoid overlapping the bottom of the circle */
+  /* This shows from ~60px above the card down to ~150px into the card (circle top is 133px) */
+  clip-path: polygon(0 15%, 100% 15%, 100% 60%, 0 60%); 
   z-index: 14;
   background-size: 295px 400px;
   background-repeat: no-repeat;

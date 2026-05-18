@@ -439,6 +439,8 @@ export async function fetchGLPITickets() {
         createdAt: t.date || new Date().toISOString(),
         photo: existing.photo || null,
         processedPhoto: existing.processedPhoto || null,
+        panX: existing.panX || 0,
+        panY: existing.panY || 0,
       };
     });
 
@@ -467,24 +469,30 @@ export async function getEmployees(force = false) {
 }
 
 export async function getEmployee(id) {
+  if (!id) return null;
+  const targetId = id.toLowerCase();
+  
   if (!dataLoaded) await fetchGLPITickets();
-  const emp = employees.find(e => e.id === id);
+  const emp = employees.find(e => e.id.toLowerCase() === targetId);
   if (!emp) return null;
+  
+  const realId = emp.id; // Use the actual case-sensitive ID for DB keys
 
-  let photo = await getPhotoDB(`${id}_photo`);
-  let processedPhoto = await getPhotoDB(`${id}_processed`);
+
+  let photo = await getPhotoDB(`${realId}_photo`);
+  let processedPhoto = await getPhotoDB(`${realId}_processed`);
 
   // SINKRONISASI CLOUD: Jika foto hasil proses (ID Card) hilang di lokal tapi tiketnya dari GLPI,
   // coba tarik lampiran dokumen dari GLPI.
-  if (!processedPhoto && id.startsWith('glpi-')) {
+  if (!processedPhoto && realId.toLowerCase().startsWith('glpi-')) {
     console.log('[Sync] Foto lokal tidak ditemukan, mencoba sinkronisasi dari GLPI...');
-    const ticketId = id.replace('glpi-', '');
+    const ticketId = realId.split('-')[1];
     const cloudPhoto = await fetchIDCardFromGLPI(ticketId);
     if (cloudPhoto) {
       console.log('[Sync] Berhasil mendownload ID Card dari GLPI.');
       processedPhoto = cloudPhoto;
       // Simpan ke lokal (IndexedDB) agar pembukaan berikutnya lebih cepat
-      await savePhotoDB(`${id}_processed`, cloudPhoto);
+      await savePhotoDB(`${realId}_processed`, cloudPhoto);
     }
   }
 
