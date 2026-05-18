@@ -1,7 +1,13 @@
 // Mock data layer + GLPI Integration
 const STORAGE_KEY = 'solusiku_idcard_data';
 
-const GLPI_API_URL = import.meta.env.VITE_GLPI_API_URL;
+const IS_DEV = import.meta.env.DEV;
+let GLPI_API_URL = import.meta.env.VITE_GLPI_API_URL;
+if (IS_DEV) {
+  // Use Vite proxy in development to bypass mobile DNS/SSL restrictions
+  GLPI_API_URL = '/glpi-proxy';
+}
+
 const GLPI_APP_TOKEN = import.meta.env.VITE_GLPI_APP_TOKEN;
 
 const DEFAULT_EMPLOYEES = [
