@@ -2,79 +2,72 @@ import { removeBackground as imglyRemoveBackground } from '@imgly/background-rem
 
 /**
  * Remove background from an image using client-side AI.
- * Optimization: We downscale the image for faster processing on mobile devices
- * and to prevent main-thread blocking (browser "Wait" prompts).
+ * Robust version: GPU → CPU fallback, reduced memory, always resolves.
  */
 export async function removeBackground(imageDataURL, onProgress) {
   if (onProgress) onProgress(0);
 
-  // 1. Load and downscale the image first to speed up AI processing
-  // Most AI models for background removal work perfectly at lower resolutions (~480-512px)
+  // 1. Downscale to reduce memory pressure (especially on mobile)
+  const MAX_DIM = 600; // Reduced from 800 to prevent OOM on mobile
   const img = new Image();
-  await new Promise(resolve => {
+  await new Promise((resolve, reject) => {
     img.onload = resolve;
+    img.onerror = reject;
     img.src = imageDataURL;
   });
 
-  const MAX_DIM = 800; 
-  let width = img.width;
-  let height = img.height;
-
+  let { width, height } = img;
   if (width > MAX_DIM || height > MAX_DIM) {
-    if (width > height) {
-      height *= MAX_DIM / width;
-      width = MAX_DIM;
-    } else {
-      width *= MAX_DIM / height;
-      height = MAX_DIM;
-    }
+    if (width > height) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
+    else { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
   }
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  
-  // Aktifkan smoothing kualitas tinggi
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  
-  // Tambahkan sedikit penajaman agar foto lebih "pop" dan tidak blur
-  ctx.filter = 'contrast(1.05) brightness(1.02)';
   ctx.drawImage(img, 0, 0, width, height);
 
-  const inputBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-  
+  const inputBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
   if (onProgress) onProgress(10);
 
-  try {
-    // 2. Process with hardware acceleration hints
-    const resultBlob = await imglyRemoveBackground(inputBlob, {
+  // 2. Try GPU first, fallback to CPU if it crashes
+  const tryRemove = async (device) => {
+    return imglyRemoveBackground(inputBlob, {
       progress: (key, current, total) => {
         if (onProgress && total > 0) {
-          const pct = Math.round(10 + (current / total) * 85);
-          onProgress(Math.min(pct, 95));
+          onProgress(Math.min(Math.round(10 + (current / total) * 85), 95));
         }
       },
-      output: {
-        format: 'image/png',
-        quality: 0.8, // Slightly lower quality for much faster encoding
-      },
-      // Suggesting GPU usage to avoid CPU bottlenecking
-      device: 'gpu', 
-      model: 'medium' // Using medium instead of large if library supports it
+      output: { format: 'image/png', quality: 0.85 },
+      device,
+      model: 'small', // Use 'small' model — much lighter, still good quality
     });
+  };
 
-    if (onProgress) onProgress(100);
-
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(resultBlob);
-    });
-  } catch (err) {
-    console.error('Background removal failed:', err);
-    throw new Error('Gagal menghapus background: ' + err.message);
+  let resultBlob;
+  try {
+    resultBlob = await tryRemove('gpu');
+  } catch (gpuErr) {
+    console.warn('[BG Removal] GPU failed, trying CPU:', gpuErr.message);
+    try {
+      resultBlob = await tryRemove('cpu');
+    } catch (cpuErr) {
+      console.error('[BG Removal] CPU also failed:', cpuErr.message);
+      // Last resort: return original image (no blank page)
+      if (onProgress) onProgress(100);
+      return imageDataURL;
+    }
   }
+
+  if (onProgress) onProgress(100);
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => resolve(imageDataURL); // fallback on read error
+    reader.readAsDataURL(resultBlob);
+  });
 }

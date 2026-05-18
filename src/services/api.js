@@ -525,7 +525,6 @@ async function fetchIDCardFromGLPI(ticketId) {
     if (!idCardDoc) return null;
 
     // 2. Download file aslinya
-    // Di GLPI API, GET /Document/:id mengembalikan file jika kita tambahkan parameter alt=media
     const fileRes = await fetch(`${GLPI_API_URL}/Document/${idCardDoc.id}?alt=media`, {
       headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
     });
@@ -542,6 +541,107 @@ async function fetchIDCardFromGLPI(ticketId) {
 
   } catch (err) {
     console.error('[Sync] Gagal sinkronisasi foto dari GLPI:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch ID Card image from GLPI and return an Object URL (blob://).
+ * Uses correct GLPI endpoint: /Document_Item to find docs linked to ticket.
+ */
+export async function fetchIDCardBlobURL(ticketId) {
+  const session = glpiSessionToken || await getSession();
+  if (!session || !GLPI_API_URL) {
+    console.warn('[GLPI] fetchIDCardBlobURL: no session or API URL');
+    return null;
+  }
+
+  try {
+    const rawId = String(ticketId).replace(/^GLPI-/i, '');
+
+    // Strategy 1: Use Document_Item endpoint (correct GLPI REST API way)
+    // GET /Document_Item?searchText[items_id]=RAW_ID&searchText[itemtype]=Ticket
+    const diRes = await fetch(
+      `${GLPI_API_URL}/Document_Item?searchText[items_id]=${rawId}&searchText[itemtype]=Ticket`,
+      { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } }
+    );
+
+    let documentIds = [];
+    if (diRes.ok) {
+      const items = await diRes.json();
+      console.log('[GLPI] Document_Item results for ticket', rawId, ':', items);
+      if (Array.isArray(items) && items.length > 0) {
+        documentIds = items.map(i => i.documents_id).filter(Boolean);
+      }
+    } else {
+      console.warn('[GLPI] Document_Item query failed:', diRes.status, await diRes.text());
+    }
+
+    // Strategy 2: Fallback — search by document name
+    if (documentIds.length === 0) {
+      console.warn('[GLPI] Trying fallback: search document by name');
+      const nameSearchRes = await fetch(
+        `${GLPI_API_URL}/Document?searchText[name]=ID+Card+-+${ticketId}`,
+        { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } }
+      );
+      if (nameSearchRes.ok) {
+        const named = await nameSearchRes.json();
+        console.log('[GLPI] Name search results:', named);
+        if (Array.isArray(named) && named.length > 0) {
+          documentIds = named.map(d => d.id).filter(Boolean);
+        }
+      }
+    }
+
+    if (documentIds.length === 0) {
+      console.warn('[GLPI] No documents found for ticket', rawId);
+      return null;
+    }
+
+    // Try each document ID — find the one that is an image
+    for (const docId of documentIds.reverse()) { // newest first
+      try {
+        // Get document metadata
+        const metaRes = await fetch(`${GLPI_API_URL}/Document/${docId}`, {
+          headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+        });
+        if (!metaRes.ok) continue;
+        const meta = await metaRes.json();
+        console.log('[GLPI] Document metadata:', meta);
+
+        const fname = (meta.filename || meta.name || '').toLowerCase();
+        const isImage = fname.endsWith('.png') || fname.endsWith('.jpg') ||
+                        fname.endsWith('.jpeg') || fname.endsWith('.webp') ||
+                        (meta.mime || '').startsWith('image/');
+
+        // Try to download
+        const fileRes = await fetch(`${GLPI_API_URL}/Document/${docId}?alt=media`, {
+          headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+        });
+
+        if (!fileRes.ok) continue;
+
+        const contentType = fileRes.headers.get('content-type') || '';
+        const blob = await fileRes.blob();
+
+        if (blob.size === 0) continue;
+
+        // Accept if it's an image content-type OR filename matches image extensions
+        if (contentType.startsWith('image/') || isImage || blob.size > 1000) {
+          console.log('[GLPI] Successfully fetched document', docId, 'size:', blob.size);
+          const objectURL = URL.createObjectURL(blob);
+          return { objectURL, docId, blob };
+        }
+      } catch (innerErr) {
+        console.warn('[GLPI] Error fetching doc', docId, innerErr.message);
+      }
+    }
+
+    console.warn('[GLPI] No valid image document found among IDs:', documentIds);
+    return null;
+
+  } catch (err) {
+    console.error('[GLPI] fetchIDCardBlobURL error:', err);
     return null;
   }
 }

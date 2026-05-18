@@ -1,4 +1,4 @@
-import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmployee } from '../services/api.js';
+import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmployee, fetchIDCardBlobURL } from '../services/api.js';
 import { exportToImage, downloadFile } from '../services/export.js';
 import { triggerWebhook } from '../services/webhook.js';
 import { renderIDCard, getLogo } from '../templates/idcard.js';
@@ -13,50 +13,55 @@ export async function renderApproval(container, empId) {
     return;
   }
 
-  const photoToUse = emp.processedPhoto || emp.photo;
+  const isApproved = emp.status === 'approved';
+  const photoToUse  = emp.processedPhoto || emp.photo;
 
+  // ─── Declare ALL mutable state at the TOP — no TDZ issues ───
+  var cardEl    = null;   // The rendered CSS ID card element (non-approved)
+  var glpiBlob  = null;   // Cached blob from GLPI (approved)
+  var glpiURL   = null;   // Cached object URL from GLPI (approved)
+
+  // ──────────────────────────────────────────────────────────────
+  // HTML SHELL
+  // ──────────────────────────────────────────────────────────────
   container.innerHTML = `
     <button class="back-btn" id="btn-back">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-      Kembali ke Dashboard
+      ${isApproved ? 'Kembali ke Selesai' : 'Kembali ke Dashboard'}
     </button>
 
     <div class="page-header">
-      <h1>Preview & Approval</h1>
-      <p>Review hasil ID Card sebelum dicetak</p>
+      <h1>${isApproved ? '✅ ID Card Selesai' : 'Preview &amp; Approval'}</h1>
+      <p>${isApproved ? 'ID Card telah disetujui — ditampilkan langsung dari GLPI' : 'Review hasil ID Card sebelum dicetak'}</p>
     </div>
 
     <div class="approval-layout">
-      <!-- Comparison Toggle -->
-      ${emp.photo && emp.processedPhoto ? `
+      ${!isApproved && emp.photo && emp.processedPhoto ? `
       <div class="comparison-toggle">
         <button class="active" data-view="card">🪪 ID Card</button>
         <button data-view="original">📷 Foto Original</button>
         <button data-view="processed">✨ Foto Processed</button>
-      </div>
-      ` : ''}
+      </div>` : ''}
 
-      <!-- ID Card Preview Area (v3) -->
-      <div class="idcard-preview-wrapper-v3" style="width:100%; display:grid; place-items:center; padding:20px 0; overflow:visible; min-height:350px;">
-        <div class="idcard-preview-scale-container-v3" style="display:grid; place-items:center; transform-origin: center center; transition: transform 0.2s ease;">
-          <div class="idcard-preview-frame-v3" style="width:324px; height:514px; position:relative; box-shadow:0 25px 70px rgba(0,0,0,0.22); border-radius:12px; background:#fff; overflow:hidden; flex-shrink:0;">
-            <div id="idcard-render" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; margin:0 !important; padding:0 !important;"></div>
+      <!-- ID Card Preview -->
+      <div class="idcard-preview-wrapper-v3" style="width:100%;display:grid;place-items:center;padding:20px 0;overflow:visible;min-height:350px;">
+        <div class="idcard-preview-scale-container-v3" style="display:grid;place-items:center;transform-origin:center center;transition:transform 0.2s ease;">
+          <div class="idcard-preview-frame-v3" style="width:324px;height:514px;position:relative;box-shadow:0 25px 70px rgba(0,0,0,0.22);border-radius:12px;background:#f5f5f5;overflow:hidden;flex-shrink:0;">
+            <div id="idcard-render" style="position:absolute;inset:0;"></div>
           </div>
         </div>
       </div>
 
-      <!-- Photo Comparison (hidden by default) -->
-      <div id="photo-comparison" style="display:none; width:100%;">
+      <!-- Photo Comparison (pending only) -->
+      <div id="photo-comparison" style="display:none;width:100%;">
         <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;padding:20px 0">
-          ${emp.photo ? `
-          <div style="text-align:center">
+          ${emp.photo ? `<div style="text-align:center">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:8px">Original</p>
             <img src="${emp.photo}" alt="Original" style="width:200px;height:267px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border)"/>
           </div>` : ''}
-          ${emp.processedPhoto ? `
-          <div style="text-align:center">
+          ${emp.processedPhoto ? `<div style="text-align:center">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:8px">Processed</p>
-            <img src="${emp.processedPhoto}" alt="Processed" style="width:200px;height:267px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border);background:repeating-conic-gradient(#e2e8f0 0% 25%, white 0% 50%) 50%/16px 16px"/>
+            <img src="${emp.processedPhoto}" alt="Processed" style="width:200px;height:267px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--border);background:repeating-conic-gradient(#e2e8f0 0% 25%,white 0% 50%) 50%/16px 16px"/>
           </div>` : ''}
         </div>
       </div>
@@ -68,26 +73,23 @@ export async function renderApproval(container, empId) {
           <div><span class="info-label">Jabatan</span><br/><strong>${emp.jabatan}</strong></div>
           <div><span class="info-label">NIK</span><br/><strong>${emp.nik}</strong></div>
           <div><span class="info-label">Ticket</span><br/>
-            <a href="${getTicketUrl(emp.ticketId)}" target="_blank" class="ticket-link-detail">
-              <strong>${emp.ticketId}</strong>
-            </a>
+            <a href="${getTicketUrl(emp.ticketId)}" target="_blank" class="ticket-link-detail"><strong>${emp.ticketId}</strong></a>
           </div>
         </div>
       </div>
 
       <!-- Actions -->
       <div class="approval-actions">
-        ${emp.status !== 'approved' ? `
+        ${!isApproved ? `
         <button class="btn btn-danger btn-lg" id="btn-reject">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="m15 9-6 6"/></svg>
           Retake Foto
         </button>
         <button class="btn btn-success btn-lg" id="btn-approve">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg>
-          Approve & Print
-        </button>
-        ` : ''}
-        <button class="btn btn-primary btn-lg" id="btn-download" ${emp.status === 'approved' ? 'style="grid-column: 1 / -1"' : ''}>
+          Approve &amp; Print
+        </button>` : ''}
+        <button class="btn btn-primary btn-lg" id="btn-download" ${isApproved ? 'style="grid-column:1/-1"' : ''}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Download PNG
         </button>
@@ -95,244 +97,267 @@ export async function renderApproval(container, empId) {
     </div>
   `;
 
-  // Render ID Card
   const idcardEl = container.querySelector('#idcard-render');
-  const card = renderIDCard({
-    name: emp.name,
-    jabatan: emp.jabatan,
-    nik: emp.nik,
-    photo: photoToUse,
-    panX: emp.panX || 0,
-    panY: emp.panY || 0,
-  });
 
-  // Set data for manual canvas export
-  card.dataset.name = emp.name;
-  card.dataset.jabatan = emp.jabatan;
-  card.dataset.nik = emp.nik;
-  card.dataset.photo = photoToUse;
-  card.dataset.logo = getLogo();
-  card.dataset.panX = emp.panX || 0;
-  card.dataset.panY = emp.panY || 0;
+  // ──────────────────────────────────────────────────────────────
+  // RENDER: APPROVED → fetch from GLPI | PENDING → CSS template
+  // ──────────────────────────────────────────────────────────────
+  if (isApproved) {
+    // Show spinner while loading
+    idcardEl.innerHTML = `
+      <div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#999;">
+        <div class="spinner" style="width:32px;height:32px;border-width:3px;"></div>
+        <span style="font-size:0.8rem;">Memuat dari GLPI...</span>
+      </div>`;
 
-  idcardEl.appendChild(card);
+    fetchIDCardBlobURL(emp.ticketId).then(function(result) {
+      if (result && result.objectURL) {
+        glpiURL  = result.objectURL;
+        glpiBlob = result.blob;
+        idcardEl.innerHTML = `
+          <img src="${result.objectURL}"
+               alt="ID Card ${emp.name}"
+               style="width:100%;height:100%;object-fit:contain;display:block;border-radius:12px;"/>`;
+      } else {
+        // GLPI not available — fallback to local CSS render
+        idcardEl.innerHTML = '';
+        buildLocalCard();
+        showToast('Gambar GLPI tidak tersedia, tampil preview lokal.', 'warning');
+      }
+    }).catch(function() {
+      idcardEl.innerHTML = '';
+      buildLocalCard();
+      showToast('Gagal terhubung ke GLPI.', 'error');
+    });
 
-  // Auto-scale preview to fit screen width
-  const scalePreview = () => {
-    const wrapper = container.querySelector('.idcard-preview-wrapper-v3');
-    const scaleContainer = container.querySelector('.idcard-preview-scale-container-v3');
-    const frame = container.querySelector('.idcard-preview-frame-v3');
-    
-    if (!wrapper || !scaleContainer || !frame) return;
-    
-    const padding = 32;
-    const availableWidth = wrapper.clientWidth - padding;
-    const cardWidth = 324;
-    
-    if (availableWidth < cardWidth) {
-      const scale = availableWidth / cardWidth;
-      scaleContainer.style.transform = `scale(${scale})`;
-      
-      const visualHeight = 514 * scale;
-      wrapper.style.height = `${visualHeight + 60}px`;
-      wrapper.style.minHeight = '0';
-    } else {
-      scaleContainer.style.transform = 'scale(1)';
-      wrapper.style.height = '600px';
-    }
-  };
+  } else {
+    // Pending / review — render CSS template with panning
+    buildLocalCard();
+  }
 
-  // Run scale on mount and resize
-  setTimeout(scalePreview, 50);
-  window.addEventListener('resize', scalePreview);
-  
-  // Cleanup listener when navigating away
-  const observer = new MutationObserver((mutations) => {
-    if (!document.body.contains(container)) {
-      window.removeEventListener('resize', scalePreview);
-      observer.disconnect();
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  // ──────────────────────────────────────────────────────────────
+  // BUILD LOCAL CSS CARD + PANNING (only for non-approved or fallback)
+  // cardEl is safe to use after this function runs
+  // ──────────────────────────────────────────────────────────────
+  function buildLocalCard() {
+    cardEl = renderIDCard({
+      name:    emp.name,
+      jabatan: emp.jabatan,
+      nik:     emp.nik,
+      photo:   photoToUse,
+      panX:    emp.panX || 0,
+      panY:    emp.panY || 0,
+    });
+    cardEl.dataset.name    = emp.name;
+    cardEl.dataset.jabatan = emp.jabatan;
+    cardEl.dataset.nik     = emp.nik;
+    cardEl.dataset.photo   = photoToUse || '';
+    cardEl.dataset.logo    = getLogo() || '';
+    cardEl.dataset.panX    = emp.panX || 0;
+    cardEl.dataset.panY    = emp.panY || 0;
+    idcardEl.appendChild(cardEl);
 
+    // Panning is only set up here, after cardEl exists
+    setupPanning();
+  }
 
-  // --- Photo Panning Logic ---
-  const photoWrapper = card.querySelector('.idcard-photo-wrapper');
-  if (photoWrapper && photoToUse) {
+  // ──────────────────────────────────────────────────────────────
+  // PANNING — only called from buildLocalCard(), cardEl is always set
+  // ──────────────────────────────────────────────────────────────
+  function setupPanning() {
+    var photoWrapper = cardEl.querySelector('.idcard-photo-wrapper');
+    if (!photoWrapper || !photoToUse) return;
+
     photoWrapper.style.cursor = 'grab';
     photoWrapper.title = 'Geser foto untuk menyesuaikan posisi';
-    
-    let isDragging = false;
-    let startX = 0, startY = 0;
-    let currentX = emp.panX || 0;
-    let currentY = emp.panY || 0;
 
-    const isApproved = emp.status === 'approved';
-    if (isApproved) {
-      photoWrapper.style.cursor = 'default';
-      photoWrapper.title = 'ID Card sudah di-approve, posisi dikunci.';
-    }
-    
-    const clipDiv = photoWrapper.querySelector('.idcard-photo-clip');
-    const popDiv = photoWrapper.querySelector('.idcard-photo-pop');
+    var isDragging = false;
+    var startX = 0, startY = 0;
+    var currentX = emp.panX || 0;
+    var currentY = emp.panY || 0;
+    var clipDiv  = photoWrapper.querySelector('.idcard-photo-clip');
+    var popDiv   = photoWrapper.querySelector('.idcard-photo-pop');
 
     function applyPan() {
-      // Use calc to shift background position from bottom center (50% 100%)
-      const bgPos = `calc(50% + ${currentX}px) calc(100% + ${currentY}px)`;
+      var bgPos = 'calc(50% + ' + currentX + 'px) calc(100% + ' + currentY + 'px)';
       if (clipDiv) clipDiv.style.backgroundPosition = bgPos;
-      if (popDiv) popDiv.style.backgroundPosition = bgPos;
+      if (popDiv)  popDiv.style.backgroundPosition  = bgPos;
     }
-    
-    // Apply initial saved position
     applyPan();
 
-    // Get current CSS scale factor for drag compensation
-    function getCurrentScale() {
-      const scaleContainer = container.querySelector('.idcard-preview-scale-container-v3');
-      if (!scaleContainer) return 1;
-      const transform = scaleContainer.style.transform;
-      const match = transform.match(/scale\(([^)]+)\)/);
-      return match ? parseFloat(match[1]) : 1;
+    function getScale() {
+      var sc = container.querySelector('.idcard-preview-scale-container-v3');
+      if (!sc) return 1;
+      var m = sc.style.transform.match(/scale\(([^)]+)\)/);
+      return m ? parseFloat(m[1]) : 1;
     }
 
-    function onDragStart(e) {
-      if (isApproved || e.target.closest('button')) return;
+    function onStart(e) {
+      if (e.target.closest('button')) return;
       isDragging = true;
       photoWrapper.style.cursor = 'grabbing';
-      const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
-      const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-      startX = clientX;
-      startY = clientY;
+      var pt = e.touches ? e.touches[0] : e;
+      startX = pt.clientX; startY = pt.clientY;
       e.preventDefault();
     }
-
-    function onDragMove(e) {
+    function onMove(e) {
       if (!isDragging) return;
-      const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
-      const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-      const scale = getCurrentScale();
-      // Convert screen-space delta to element-space delta
-      const deltaX = (clientX - startX) / scale;
-      const deltaY = (clientY - startY) / scale;
-      startX = clientX;
-      startY = clientY;
-      currentX += deltaX;
-      currentY += deltaY;
+      var pt = e.touches ? e.touches[0] : e;
+      var sc = getScale();
+      currentX += (pt.clientX - startX) / sc;
+      currentY += (pt.clientY - startY) / sc;
+      startX = pt.clientX; startY = pt.clientY;
       applyPan();
     }
-
-    function onDragEnd() {
+    function onEnd() {
       if (!isDragging) return;
       isDragging = false;
       photoWrapper.style.cursor = 'grab';
-      // Save position to employee data so it persists
       updateEmployee(empId, { panX: currentX, panY: currentY });
-      
-      // Update dataset for immediate export/download
-      card.dataset.panX = currentX;
-      card.dataset.panY = currentY;
+      cardEl.dataset.panX = currentX;
+      cardEl.dataset.panY = currentY;
     }
 
-    photoWrapper.addEventListener('mousedown', onDragStart);
-    document.addEventListener('mousemove', onDragMove);
-    document.addEventListener('mouseup', onDragEnd);
-    
-    photoWrapper.addEventListener('touchstart', onDragStart, { passive: false });
-    document.addEventListener('touchmove', onDragMove, { passive: false });
-    document.addEventListener('touchend', onDragEnd);
-    
-    // Cleanup event listeners when navigating away
-    const cleanup = () => {
-      document.removeEventListener('mousemove', onDragMove);
-      document.removeEventListener('mouseup', onDragEnd);
-      document.removeEventListener('touchmove', onDragMove);
-      document.removeEventListener('touchend', onDragEnd);
-    };
-    
-    // Override back button to cleanup
-    const btnBack = container.querySelector('#btn-back');
-    const oldBack = btnBack.onclick;
-    btnBack.addEventListener('click', () => {
-      cleanup();
+    photoWrapper.addEventListener('mousedown',  onStart);
+    photoWrapper.addEventListener('touchstart', onStart, { passive: false });
+    document.addEventListener('mousemove',  onMove);
+    document.addEventListener('mouseup',    onEnd);
+    document.addEventListener('touchmove',  onMove, { passive: false });
+    document.addEventListener('touchend',   onEnd);
+
+    // Cleanup when leaving page
+    container.querySelector('#btn-back').addEventListener('click', function() {
+      document.removeEventListener('mousemove',  onMove);
+      document.removeEventListener('mouseup',    onEnd);
+      document.removeEventListener('touchmove',  onMove);
+      document.removeEventListener('touchend',   onEnd);
+      if (glpiURL) URL.revokeObjectURL(glpiURL);
     });
   }
 
-  // Comparison toggle
-  container.querySelectorAll('.comparison-toggle button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      container.querySelectorAll('.comparison-toggle button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const view = btn.dataset.view;
-      const wrapper = container.querySelector('.idcard-preview-wrapper');
-      const comparison = container.querySelector('#photo-comparison');
+  // ──────────────────────────────────────────────────────────────
+  // AUTO-SCALE PREVIEW
+  // ──────────────────────────────────────────────────────────────
+  function scalePreview() {
+    var wrapper  = container.querySelector('.idcard-preview-wrapper-v3');
+    var scaleCt  = container.querySelector('.idcard-preview-scale-container-v3');
+    if (!wrapper || !scaleCt) return;
+    var avail = wrapper.clientWidth - 32;
+    if (avail < 324) {
+      var sc = avail / 324;
+      scaleCt.style.transform = 'scale(' + sc + ')';
+      wrapper.style.height    = (514 * sc + 60) + 'px';
+      wrapper.style.minHeight = '0';
+    } else {
+      scaleCt.style.transform = 'scale(1)';
+      wrapper.style.height    = '600px';
+    }
+  }
+  setTimeout(scalePreview, 50);
+  window.addEventListener('resize', scalePreview);
+  var resizeObserver = new MutationObserver(function() {
+    if (!document.body.contains(container)) {
+      window.removeEventListener('resize', scalePreview);
+      resizeObserver.disconnect();
+    }
+  });
+  resizeObserver.observe(document.body, { childList: true, subtree: true });
 
-      if (view === 'card') {
-        wrapper.style.display = 'block';
-        comparison.style.display = 'none';
+  // ──────────────────────────────────────────────────────────────
+  // COMPARISON TOGGLE
+  // ──────────────────────────────────────────────────────────────
+  container.querySelectorAll('.comparison-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      container.querySelectorAll('.comparison-toggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var previewWrapper = container.querySelector('.idcard-preview-wrapper-v3');
+      var comparison     = container.querySelector('#photo-comparison');
+      if (btn.dataset.view === 'card') {
+        if (previewWrapper) previewWrapper.style.display = 'grid';
+        if (comparison)     comparison.style.display = 'none';
       } else {
-        wrapper.style.display = 'none';
-        comparison.style.display = 'block';
+        if (previewWrapper) previewWrapper.style.display = 'none';
+        if (comparison)     comparison.style.display = 'block';
       }
     });
   });
 
-  // Back
-  container.querySelector('#btn-back').addEventListener('click', () => {
-    if (emp.status === 'approved') {
-      navigate('/finished');
-    } else {
-      navigate('/');
-    }
+  // ──────────────────────────────────────────────────────────────
+  // BACK BUTTON
+  // ──────────────────────────────────────────────────────────────
+  container.querySelector('#btn-back').addEventListener('click', function() {
+    if (glpiURL) URL.revokeObjectURL(glpiURL);
+    navigate(isApproved ? '/finished' : '/');
   });
 
-  // Reject (Only if not approved)
-  if (emp.status !== 'approved') {
-    container.querySelector('#btn-reject').addEventListener('click', () => {
+  // ──────────────────────────────────────────────────────────────
+  // REJECT (pending only)
+  // ──────────────────────────────────────────────────────────────
+  if (!isApproved) {
+    container.querySelector('#btn-reject').addEventListener('click', function() {
       resetEmployee(empId);
       showToast('Foto direset. Silakan ambil ulang.', 'warning');
-      navigate(`/detail/${empId}`);
+      navigate('/detail/' + empId);
     });
   }
 
-  // Download
-  container.querySelector('#btn-download').addEventListener('click', async () => {
-    const btn = container.querySelector('#btn-download');
+  // ──────────────────────────────────────────────────────────────
+  // DOWNLOAD
+  // ──────────────────────────────────────────────────────────────
+  container.querySelector('#btn-download').addEventListener('click', async function() {
+    var btn = container.querySelector('#btn-download');
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px"></div> Exporting...';
+    var filename = 'IDCard_' + emp.name.replace(/\s+/g, '_') + '_' + emp.nik + '.png';
 
     try {
-      const { blob, width, height } = await exportToImage(card, 300);
-      const filename = `IDCard_${emp.name.replace(/\s+/g, '_')}_${emp.nik}.png`;
-      downloadFile(blob, filename);
-      showToast(`Exported: ${width}×${height}px (300 DPI)`, 'success');
+      if (isApproved) {
+        // Download directly from GLPI blob
+        var blob = glpiBlob;
+        if (!blob) {
+          var res = await fetchIDCardBlobURL(emp.ticketId);
+          blob = res && res.blob;
+        }
+        if (blob) {
+          downloadFile(blob, filename);
+          showToast('Downloaded from GLPI', 'success');
+        } else {
+          showToast('File tidak ditemukan di GLPI.', 'error');
+        }
+      } else {
+        // Canvas export from CSS template — cardEl must exist here
+        if (!cardEl) { showToast('Preview belum siap, coba lagi.', 'warning'); return; }
+        var result = await exportToImage(cardEl, 300);
+        downloadFile(result.blob, filename);
+        showToast('Exported: ' + result.width + '×' + result.height + 'px (300 DPI)', 'success');
+      }
     } catch (err) {
       showToast('Export gagal: ' + err.message, 'error');
     }
 
     btn.disabled = false;
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PNG`;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PNG';
   });
 
-  // Approve (Only if not approved)
-  if (emp.status !== 'approved') {
-    container.querySelector('#btn-approve').addEventListener('click', async () => {
-      const btn = container.querySelector('#btn-approve');
+  // ──────────────────────────────────────────────────────────────
+  // APPROVE & PRINT (pending only)
+  // ──────────────────────────────────────────────────────────────
+  if (!isApproved) {
+    container.querySelector('#btn-approve').addEventListener('click', async function() {
+      if (!cardEl) { showToast('Preview belum siap.', 'warning'); return; }
+      var btn = container.querySelector('#btn-approve');
       btn.disabled = true;
       btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px"></div> Processing...';
 
       try {
-        const { blob } = await exportToImage(card, 300);
-        
-        // Save status to local first
+        var result = await exportToImage(cardEl, 300);
         approveEmployee(empId);
-        
-        const cleanTicketId = emp.ticketId.replace('GLPI-', '');
-        const uploadSuccess = await uploadToGLPI(emp.ticketId, blob);
-        
+
+        var uploadSuccess = await uploadToGLPI(emp.ticketId, result.blob);
         if (uploadSuccess) {
           showToast('Berhasil approve & upload ke GLPI', 'success');
         } else {
-          showToast('Approve lokal berhasil, tapi gagal upload ke GLPI. Periksa koneksi.', 'warning');
+          showToast('Approve lokal berhasil, tapi gagal upload ke GLPI.', 'warning');
         }
 
         await triggerWebhook('card_approved', {
@@ -347,7 +372,7 @@ export async function renderApproval(container, empId) {
         console.error('Approve failed:', err);
         showToast('Gagal memproses approval: ' + err.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg> Approve & Print`;
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg> Approve &amp; Print';
       }
     });
   }

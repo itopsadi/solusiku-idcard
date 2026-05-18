@@ -362,6 +362,39 @@ setInterval(checkNotifications, 180000);
 // Initial check
 checkNotifications();
 
+// ============================================================
+// Global Error Boundary — catch crashes from WASM/AI models
+// Prevents blank page when background-removal.js crashes
+// ============================================================
+window.addEventListener('unhandledrejection', (event) => {
+  const err = event.reason;
+  const msg = err?.message || String(err);
+  console.error('[Global] Unhandled rejection:', msg);
+  
+  // Show toast if possible
+  try {
+    const { showToast } = window._toastModule || {};
+    const container = document.getElementById('toast-container');
+    if (container) {
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-error';
+      toast.textContent = '⚠️ Proses gagal: ' + (msg.length > 80 ? msg.slice(0, 80) + '...' : msg);
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 5000);
+    }
+  } catch (e) {}
+
+  // If page is blank (no visible content), navigate back to home
+  const pageContainer = document.getElementById('page-container');
+  if (pageContainer && !pageContainer.children.length) {
+    window.location.hash = '/';
+  }
+});
+
+window.addEventListener('error', (event) => {
+  console.error('[Global] Uncaught error:', event.message, event.filename, event.lineno);
+});
+
 initApp();
 
 console.log('%c🪪 ID Card Control Center', 'color:#b91c1c;font-size:14px;font-weight:bold');
