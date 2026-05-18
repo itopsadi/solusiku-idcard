@@ -188,7 +188,7 @@
 .idcard-info {
   flex-shrink: 0;
   padding: 0 4px;
-  margin-top: 16px; /* Increased from 4px to add space between circle and text */
+  margin-top: 10px; /* Reduced to give more vertical room for larger 2-line names */
   z-index: 11;
 }
 
@@ -197,13 +197,15 @@
   font-family: 'Poppins', sans-serif;
   font-weight: 800;
   color: #111111;
-  line-height: 1.1;
-  margin-bottom: 3px;
+  line-height: 1.15;
+  margin-bottom: 4px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   word-break: break-word;
+  /* Prevent text overflow on the right side */
+  max-width: 100%;
 }
 
 /* Job title — red, medium weight, not italic, slightly larger */

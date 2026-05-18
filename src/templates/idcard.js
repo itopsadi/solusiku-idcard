@@ -19,23 +19,42 @@ export function getLogo() {
 }
 
 /**
- * Dynamic font size for name based on character length.
- * Matches reference: short names are big & bold, long names scale down.
+ * Dynamic font size for name.
+ * Logic: if name wraps to 2 lines, font can be LARGER (more vertical space).
+ * Word count helps determine wrapping: fewer words → bigger font.
  */
 function getNameFontSize(name) {
-  const len = (name || '').length;
-  // Memungkinkan nama yang lebih panjang untuk tetap besar karena sekarang dibungkus 2 baris
-  if (len <= 12) return '2.0rem';   // Cukup pendek untuk 1 baris
-  if (len <= 20) return '1.75rem';  // Pas untuk 2 baris
-  if (len <= 30) return '1.45rem';  // Nama 3-4 kata panjang
-  return '1.25rem';                 // Tetap terbaca walau sangat panjang
+  const len = (name || '').trim().length;
+  const words = (name || '').trim().split(/\s+/).length;
+
+  // Very short names — big & bold, fits 1 line
+  if (len <= 10) return '2.4rem';
+
+  // Short names, 1–2 words
+  if (len <= 16) return '2.1rem';
+
+  // Medium names — likely 2 lines, can still be large
+  if (len <= 22) return '1.9rem';
+
+  // 3–5 word names wrapping to 2 lines — this is the sweet spot
+  // Give them a larger font because 2 lines have plenty of room
+  if (len <= 32) {
+    // If 3–4 words, each line has fewer chars → can be bigger
+    if (words <= 4) return '1.75rem';
+    return '1.6rem';
+  }
+
+  // Very long names
+  if (len <= 42) return '1.45rem';
+  return '1.25rem'; // extremely long, keep readable
 }
 
 function getJobFontSize(job) {
   const len = (job || '').length;
-  if (len <= 20) return '1.15rem';  // Standar, muat 1 baris
-  if (len <= 35) return '1.05rem';  // 2 baris
-  return '0.95rem';                 // Sangat panjang
+  if (len <= 16) return '1.25rem';  // Short job title — bigger
+  if (len <= 25) return '1.12rem';  // 1–2 words
+  if (len <= 35) return '1.0rem';   // 2 lines
+  return '0.9rem';                  // Very long
 }
 
 /**
