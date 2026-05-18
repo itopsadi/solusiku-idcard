@@ -77,9 +77,9 @@ document.addEventListener('click', (e) => {
     closeSidebar();
   }
 
-  // Global Refresh Button (Top bar or Sidebar)
-  if (e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar')) {
-    const btn = e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar');
+  // Global Refresh Button (Top bar, Sidebar, or Mobile Nav)
+  if (e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar') || e.target.closest('#btn-refresh-mobile')) {
+    const btn = e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar') || e.target.closest('#btn-refresh-mobile');
     const icon = btn.querySelector('svg');
     const loadingOverlay = document.getElementById('global-loading');
     
@@ -109,12 +109,38 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Logout handling
-  if (e.target.closest('#btn-logout')) {
+  // Logout handling — full cache clear + hard reload
+  if (e.target.closest('#btn-logout') || e.target.closest('#btn-logout-mobile')) {
     e.preventDefault();
     logoutUser();
     document.body.classList.add('logged-out');
-    window.location.hash = '/login';
+    document.body.classList.remove('is-super-admin');
+    
+    // Clear ALL caches (Service Worker + Cache Storage)
+    (async () => {
+      try {
+        // 1. Unregister all service workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const reg of registrations) {
+            await reg.unregister();
+          }
+        }
+        // 2. Delete all Cache Storage entries
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          for (const name of cacheNames) {
+            await caches.delete(name);
+          }
+        }
+      } catch (err) {
+        console.warn('Cache clear failed:', err);
+      }
+      // 3. Hard reload to /login (bypasses all caches)
+      window.location.href = window.location.pathname + '#/login';
+      window.location.reload(true);
+    })();
+    return;
   }
 });
 
@@ -221,6 +247,14 @@ async function initApp() {
         if (nameEl) nameEl.textContent = p.name;
         if (roleEl) roleEl.textContent = p.role;
         if (avatarEl) avatarEl.textContent = p.avatar;
+        
+        // Role-based UI: show/hide Settings for Super-Admin only
+        const isSuperAdmin = (p.role || '').toLowerCase().includes('super-admin');
+        if (isSuperAdmin) {
+          document.body.classList.add('is-super-admin');
+        } else {
+          document.body.classList.remove('is-super-admin');
+        }
       }
     } catch (e) {}
 

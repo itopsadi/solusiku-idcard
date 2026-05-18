@@ -106,11 +106,34 @@ export function renderLogin(container) {
             if (nameEl) nameEl.textContent = p.name;
             if (roleEl) roleEl.textContent = p.role;
             if (avatarEl) avatarEl.textContent = p.avatar;
+            
+            // Role-based UI
+            const isSuperAdmin = (p.role || '').toLowerCase().includes('super-admin');
+            if (isSuperAdmin) {
+              document.body.classList.add('is-super-admin');
+            } else {
+              document.body.classList.remove('is-super-admin');
+            }
           }
         } catch (e) {}
 
         document.body.classList.remove('logged-out');
-        navigate('/');
+        
+        // Clear old caches and hard reload for fresh assets
+        try {
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            for (const name of cacheNames) {
+              await caches.delete(name);
+            }
+          }
+        } catch (cacheErr) {
+          console.warn('Cache clear on login failed:', cacheErr);
+        }
+        
+        // Hard reload to dashboard with clean state
+        window.location.href = window.location.pathname + '#/';
+        window.location.reload(true);
       }
     } catch (err) {
       console.error(err);
