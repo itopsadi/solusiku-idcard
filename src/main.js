@@ -146,74 +146,7 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// --- Pull to Refresh Logic ---
-let touchStart = 0;
-let pullDistance = 0;
-const PULL_THRESHOLD = 80;
 
-document.addEventListener('touchstart', (e) => {
-  // Only track if at the top of the page
-  if (window.scrollY === 0) {
-    touchStart = e.touches[0].pageY;
-  } else {
-    touchStart = 0;
-  }
-}, { passive: true });
-
-document.addEventListener('touchmove', (e) => {
-  if (touchStart === 0) return;
-  const touchCurrent = e.touches[0].pageY;
-  pullDistance = touchCurrent - touchStart;
-
-  if (pullDistance > 10) {
-    const indicator = document.getElementById('pull-refresh-indicator');
-    if (indicator) {
-      indicator.style.display = 'flex';
-      indicator.style.opacity = Math.min(pullDistance / PULL_THRESHOLD, 1);
-      indicator.style.transform = `translateX(-50%) translateY(${Math.min(pullDistance/2, 40)}px)`;
-      
-      const label = indicator.querySelector('span');
-      if (pullDistance > PULL_THRESHOLD) {
-        label.textContent = 'Lepas untuk refresh...';
-        indicator.style.backgroundColor = 'var(--accent)';
-        label.style.color = 'white';
-        indicator.querySelector('.spinner').style.borderColor = 'white';
-        indicator.querySelector('.spinner').style.borderTopColor = 'transparent';
-      } else {
-        label.textContent = 'Tarik untuk refresh...';
-        indicator.style.backgroundColor = 'var(--card-bg)';
-        label.style.color = 'var(--text-main)';
-        indicator.querySelector('.spinner').style.borderColor = 'var(--border-color)';
-        indicator.querySelector('.spinner').style.borderTopColor = 'var(--accent)';
-      }
-    }
-  }
-}, { passive: true });
-
-document.addEventListener('touchend', async () => {
-  if (pullDistance > PULL_THRESHOLD) {
-    const indicator = document.getElementById('pull-refresh-indicator');
-    if (indicator) {
-      indicator.querySelector('span').textContent = 'Refreshing...';
-      indicator.querySelector('.spinner').style.animation = 'spin 1s linear infinite';
-    }
-    
-    try {
-      await getEmployees(true);
-      initRouter();
-    } catch (err) {}
-    
-    // Hide after a short delay
-    setTimeout(() => {
-      if (indicator) indicator.style.display = 'none';
-    }, 500);
-  } else {
-    const indicator = document.getElementById('pull-refresh-indicator');
-    if (indicator) indicator.style.display = 'none';
-  }
-  touchStart = 0;
-  pullDistance = 0;
-});
 
 // --- Mobile Nav Active Sync ---
 window.addEventListener('hashchange', () => {
