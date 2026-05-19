@@ -161,6 +161,41 @@ window.addEventListener('hashchange', () => {
 
 // App Initialization
 async function initApp() {
+  // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
+  // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
+  const CURRENT_DEPLOYMENT_KEY = '20260519-v1';
+  const savedKey = localStorage.getItem('solusiku_deployment_key');
+  
+  if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
+    console.log('[PWA] Versi baru terdeteksi. Melakukan logout paksa dan pembersihan cache...');
+    
+    // Bersihkan sesi & profil pengguna
+    localStorage.removeItem('solusiku_user_session');
+    sessionStorage.removeItem('solusiku_user_session');
+    localStorage.removeItem('solusiku_user_profile');
+    sessionStorage.removeItem('solusiku_user_profile');
+    
+    // Bersihkan seluruh Cache Storage PWA
+    try {
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        for (const name of cacheNames) {
+          await caches.delete(name);
+        }
+      }
+    } catch (e) {
+      console.warn('[PWA] Gagal membersihkan cache storage:', e);
+    }
+    
+    // Simpan kunci deployment terbaru
+    localStorage.setItem('solusiku_deployment_key', CURRENT_DEPLOYMENT_KEY);
+    
+    // Paksa reload halaman ke login
+    window.location.hash = '/login';
+    window.location.reload(true);
+    return;
+  }
+
   const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
   
   if (sessionToken) {
