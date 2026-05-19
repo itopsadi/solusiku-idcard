@@ -154,6 +154,35 @@ async function clearPhotosDB() {
 }
 
 let glpiSessionToken = null;
+let cachedAdminSessionToken = null;
+
+export async function getAdminSessionToken() {
+  if (cachedAdminSessionToken) return cachedAdminSessionToken;
+
+  const adminUserToken = import.meta.env.VITE_GLPI_USER_TOKEN;
+  if (!adminUserToken) return null;
+
+  try {
+    const adminSessionRes = await fetch(`${GLPI_API_URL}/initSession`, {
+      headers: {
+        'App-Token': GLPI_APP_TOKEN,
+        'Authorization': `user_token ${adminUserToken}`
+      }
+    });
+    if (adminSessionRes.ok) {
+      const adminSessionData = await adminSessionRes.json();
+      cachedAdminSessionToken = adminSessionData.session_token;
+      console.log('[GLPI] Admin Bypass Session Init: SUCCESS');
+      return cachedAdminSessionToken;
+    } else {
+      const errText = await adminSessionRes.text();
+      console.error('[GLPI] Admin Bypass Session Init: FAILED', adminSessionRes.status, errText);
+    }
+  } catch (e) {
+    console.error('[GLPI] Admin Bypass Init Exception:', e);
+  }
+  return null;
+}
 
 export async function loginUser(username, password, rememberMe = true) {
   try {
@@ -379,10 +408,14 @@ export async function fetchGLPITickets() {
   }
 
   try {
+    const adminSession = await getAdminSessionToken();
+    const activeSession = adminSession || session;
+    console.log('[GLPI] fetchGLPITickets using session:', adminSession ? 'ADMIN BYPASS (Synchronized)' : 'USER SESSION');
+
     const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-100&expand_dropdowns=true&sort=id&order=DESC`, {
       headers: {
         'App-Token': GLPI_APP_TOKEN,
-        'Session-Token': session
+        'Session-Token': activeSession
       }
     });
     const tickets = await res.json();
@@ -512,7 +545,8 @@ export async function getEmployee(id) {
 }
 
 async function fetchIDCardFromGLPI(ticketId) {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return null;
 
   try {
@@ -558,7 +592,8 @@ async function fetchIDCardFromGLPI(ticketId) {
  * Uses correct GLPI endpoint: /Document_Item to find docs linked to ticket.
  */
 export async function fetchIDCardBlobURL(ticketId) {
-  const session = glpiSessionToken || await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || glpiSessionToken || await getSession();
   if (!session || !GLPI_API_URL) {
     console.warn('[GLPI] fetchIDCardBlobURL: no session or API URL');
     return null;
