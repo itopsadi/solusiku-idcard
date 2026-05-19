@@ -2,7 +2,9 @@
 const STORAGE_KEY = 'solusiku_idcard_data';
 
 const IS_DEV = import.meta.env.DEV;
-let GLPI_API_URL = import.meta.env.VITE_GLPI_API_URL;
+export let GLPI_API_URL = import.meta.env.VITE_GLPI_API_URL;
+export const REAL_GLPI_URL = new URL(import.meta.env.VITE_GLPI_API_URL).origin;
+
 if (IS_DEV) {
   // Use Vite proxy in development to bypass mobile DNS/SSL restrictions
   GLPI_API_URL = '/glpi-proxy';
@@ -850,3 +852,247 @@ export async function fetchGlobalLogo() {
     return null;
   }
 }
+
+// ==========================================
+// GLPI User Creation API
+// ==========================================
+
+export async function checkGLPIUserExists(username, nik = null) {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return false;
+
+  try {
+    // We will do a clean search
+    // criteria[0]: name = username
+    let url = `${GLPI_API_URL}/search/User?criteria[0][field]=1&criteria[0][searchtype]=equals&criteria[0][value]=${username}`;
+    
+    if (nik && nik !== '-' && nik !== '0' && nik.trim() !== '') {
+      // (name=username OR registration_number=nik)
+      url += `&criteria[1][link]=OR&criteria[1][field]=15&criteria[1][searchtype]=equals&criteria[1][value]=${nik}`;
+    }
+    
+    url += '&is_deleted=0'; // Tell API to not return deleted items (standard glpi search param)
+    
+    const res = await fetch(url, { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } });
+    const data = await res.json();
+    return data.totalcount > 0;
+  } catch (e) {
+    console.error('Check user error:', e);
+    return false;
+  }
+}
+
+export async function createGLPIUser(payload) {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) throw new Error("No GLPI session available.");
+
+  try {
+    const inputPayload = {
+      name: payload.username,
+      password: payload.password,
+      realname: payload.lastName,
+      firstname: payload.firstName,
+      is_active: 1
+    };
+    if (payload.nik) inputPayload.registration_number = payload.nik;
+    if (payload.locations_id) inputPayload.locations_id = payload.locations_id;
+    if (payload.supervisor_id) inputPayload.users_id_supervisor = payload.supervisor_id;
+
+    const res = await fetch(`${GLPI_API_URL}/User`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'App-Token': GLPI_APP_TOKEN,
+        'Session-Token': session
+      },
+      body: JSON.stringify({ input: inputPayload })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gagal membuat user GLPI (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    return data.id;
+  } catch (err) {
+    throw err;
+  }
+}
+
+export async function addGLPIUserEmail(userId, email) {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return false;
+
+  try {
+    const res = await fetch(`${GLPI_API_URL}/UserEmail`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'App-Token': GLPI_APP_TOKEN,
+        'Session-Token': session
+      },
+      body: JSON.stringify({ input: { users_id: userId, email: email, is_default: 1, is_dynamic: 0 } })
+    });
+    return res.ok;
+  } catch (err) { return false; }
+}
+
+export async function getAllGLPIGroups() {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return [];
+  try {
+    const res = await fetch(`${GLPI_API_URL}/Group?range=0-999`, { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } });
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(g => ({ id: g.id, name: g.name })) : [];
+  } catch (err) { return []; }
+}
+
+export async function getAdminSession() {
+  const adminUserToken = import.meta.env.VITE_GLPI_USER_TOKEN;
+  if (!adminUserToken) return null;
+  try {
+    const res = await fetch(`${GLPI_API_URL}/initSession`, {
+      method: 'GET',
+      headers: {
+        'App-Token': GLPI_APP_TOKEN,
+        'Authorization': `user_token ${adminUserToken}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.session_token;
+    }
+  } catch (e) {
+    console.error('[AdminSession] Failed to init admin session:', e);
+  }
+  return null;
+}
+
+export async function getAllGLPILocations() {
+  const userSession = await getSession();
+  const adminSession = await getAdminSession();
+  const session = adminSession || userSession;
+  
+  if (!session || !GLPI_API_URL) return [];
+  
+  // Strategy 1: Direct endpoint with admin or user session
+  try {
+    const res = await fetch(`${GLPI_API_URL}/Location?range=0-9999`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : Object.values(data);
+      const locations = arr.filter(l => l && typeof l === 'object' && l.id)
+        .map(l => ({ id: l.id, name: l.completename || l.name }));
+      if (locations.length > 0) {
+        console.log('[GLPI Locations] Direct endpoint success:', locations.length, 'locations');
+        if (adminSession) {
+          fetch(`${GLPI_API_URL}/killSession`, {
+            method: 'GET',
+            headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
+          }).catch(() => {});
+        }
+        return locations;
+      }
+    }
+  } catch (e) { /* try next */ }
+
+  // Strategy 2: Search API with admin or user session
+  try {
+    const res = await fetch(`${GLPI_API_URL}/search/Location?range=0-9999`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+        const locations = data.data.map(item => ({
+          id: item['2'] || item.id,
+          name: item['1'] || item.name || `Location #${item['2']}`
+        })).filter(l => l.id);
+        if (locations.length > 0) {
+          console.log('[GLPI Locations] Search API success:', locations.length, 'locations');
+          if (adminSession) {
+            fetch(`${GLPI_API_URL}/killSession`, {
+              method: 'GET',
+              headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
+            }).catch(() => {});
+          }
+          return locations;
+        }
+      }
+    }
+  } catch (e) { /* try next */ }
+
+  if (adminSession) {
+    fetch(`${GLPI_API_URL}/killSession`, {
+      method: 'GET',
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
+    }).catch(() => {});
+  }
+
+  // Strategy 3: Extract from User data using userSession (fallback)
+  console.log('[GLPI Locations] Direct & Search denied or returned empty. Extracting from User data...');
+  try {
+    const [rawRes, expRes] = await Promise.all([
+      fetch(`${GLPI_API_URL}/User?range=0-9999&is_deleted=0`, {
+        headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': userSession }
+      }),
+      fetch(`${GLPI_API_URL}/User?range=0-9999&is_deleted=0&expand_dropdowns=true`, {
+        headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': userSession }
+      })
+    ]);
+    
+    const rawUsers = await rawRes.json();
+    const expUsers = await expRes.json();
+    
+    if (!Array.isArray(rawUsers) || !Array.isArray(expUsers)) return [];
+    
+    const locationMap = new Map();
+    rawUsers.forEach(rawUser => {
+      const locId = parseInt(rawUser.locations_id);
+      if (!locId || locId === 0 || locationMap.has(locId)) return;
+      
+      const expUser = expUsers.find(u => u.id === rawUser.id);
+      if (expUser && expUser.locations_id && typeof expUser.locations_id === 'string' && expUser.locations_id !== '0') {
+        locationMap.set(locId, expUser.locations_id);
+      }
+    });
+    
+    const locations = Array.from(locationMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    console.log('[GLPI Locations] Extracted from users:', locations.length, 'locations');
+    return locations;
+  } catch (err) {
+    console.error('[GLPI Locations] All strategies failed:', err);
+    return [];
+  }
+}
+
+export async function getAllGLPIUsers() {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return [];
+  try {
+    const res = await fetch(`${GLPI_API_URL}/User?range=0-9999&is_deleted=0`, { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } });
+    const data = await res.json();
+    return Array.isArray(data) ? data.filter(u => parseInt(u.is_deleted) !== 1) : [];
+  } catch (err) { return []; }
+}
+
+export async function addGLPIUserGroup(userId, groupId) {
+  const session = await getSession();
+  if (!session || !GLPI_API_URL) return false;
+  try {
+    const res = await fetch(`${GLPI_API_URL}/Group_User`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session },
+      body: JSON.stringify({ input: { users_id: userId, groups_id: groupId, is_dynamic: 0 } })
+    });
+    return res.ok;
+  } catch (err) { return false; }
+}
+
+

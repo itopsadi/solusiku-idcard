@@ -5,6 +5,7 @@ import { renderApproval } from './screens/approval.js';
 import { renderSettings } from './screens/settings.js';
 import { renderFinished } from './screens/finished.js';
 import { renderLogin } from './screens/login.js';
+import { renderUserMaker } from './screens/user-maker.js';
 import { logoutUser, fetchGlobalLogo, getStats, getEmployees } from './services/api.js';
 import { setLogo } from './templates/idcard.js';
 import { registerSW } from 'virtual:pwa-register';
@@ -30,6 +31,7 @@ registerRoute('/approval/:id', renderApproval);
 registerRoute('/settings', renderSettings);
 registerRoute('/finished', renderFinished);
 registerRoute('/login', renderLogin);
+registerRoute('/user-maker', renderUserMaker);
 
 // Global UI Interceptors
 function openSidebar() {
@@ -77,9 +79,9 @@ document.addEventListener('click', (e) => {
     closeSidebar();
   }
 
-  // Global Refresh Button (Top bar, Sidebar, or Mobile Nav)
-  if (e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar') || e.target.closest('#btn-refresh-mobile')) {
-    const btn = e.target.closest('#btn-refresh-global') || e.target.closest('#btn-refresh-sidebar') || e.target.closest('#btn-refresh-mobile');
+  // Floating Corner Refresh Button Handler
+  if (e.target.closest('#floating-refresh-btn')) {
+    const btn = e.target.closest('#floating-refresh-btn');
     const icon = btn.querySelector('svg');
     const loadingOverlay = document.getElementById('global-loading');
     
@@ -114,7 +116,7 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     logoutUser();
     document.body.classList.add('logged-out');
-    document.body.classList.remove('is-super-admin');
+    document.body.classList.remove('is-super-admin', 'is-technical');
     
     // Clear ALL caches (Service Worker + Cache Storage)
     (async () => {
@@ -248,12 +250,21 @@ async function initApp() {
         if (roleEl) roleEl.textContent = p.role;
         if (avatarEl) avatarEl.textContent = p.avatar;
         
-        // Role-based UI: show/hide Settings for Super-Admin only
-        const isSuperAdmin = (p.role || '').toLowerCase().includes('super-admin');
+        // Role-based UI: show/hide Settings & User Maker
+        const r = (p.role || '').toLowerCase();
+        const isSuperAdmin = r.includes('super-admin');
+        const isTechnical = isSuperAdmin || r.includes('it operation') || r.includes('it ops') || r.includes('technician') || r.includes('technical') || r.includes('it op');
+        
         if (isSuperAdmin) {
           document.body.classList.add('is-super-admin');
         } else {
           document.body.classList.remove('is-super-admin');
+        }
+
+        if (isTechnical) {
+          document.body.classList.add('is-technical');
+        } else {
+          document.body.classList.remove('is-technical');
         }
       }
     } catch (e) {}
@@ -427,8 +438,71 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-window.addEventListener('error', (event) => {
-  console.error('[Global] Uncaught error:', event.message, event.filename, event.lineno);
+// --- Mobile PWA Horizontal Swipe Route Navigation ---
+let swipeStartX = 0;
+let swipeStartY = 0;
+
+document.addEventListener('touchstart', (e) => {
+  if (window.innerWidth > 768) return; // Only mobile PWA viewports
+  const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
+  if (!sessionToken) return; // Only logged-in users
+
+  // Don't trigger if swiping inside custom scrollable components, crop tools, or sliders
+  if (e.target.closest('.cropper-container') || e.target.closest('.slider') || e.target.closest('.pan-container') || e.target.closest('.modal-content') || e.target.closest('#user-modal-backdrop') || e.target.closest('#creds-modal-backdrop')) {
+    return;
+  }
+
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (window.innerWidth > 768) return;
+  const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
+  if (!sessionToken) return;
+
+  if (swipeStartX === 0 || swipeStartY === 0) return;
+
+  const endX = e.changedTouches[0].clientX;
+  const endY = e.changedTouches[0].clientY;
+
+  const dX = endX - swipeStartX;
+  const dY = endY - swipeStartY;
+
+  // Reset coordinates
+  swipeStartX = 0;
+  swipeStartY = 0;
+
+  // Ensure movement is mostly horizontal with a safe threshold
+  if (Math.abs(dX) < 80 || Math.abs(dY) > 50) return;
+
+  // Get current active visible navigation links with data-route
+  const visibleLinks = Array.from(document.querySelectorAll('.mobile-nav-link[data-route]'))
+    .filter(link => window.getComputedStyle(link).display !== 'none');
+
+  if (visibleLinks.length <= 1) return;
+
+  const hash = window.location.hash || '#/';
+  const currentRoute = hash.replace('#', '');
+
+  const currentIndex = visibleLinks.findIndex(link => link.getAttribute('data-route') === currentRoute);
+  if (currentIndex === -1) return; // Not on a main navigation tab
+
+  if (dX < 0) {
+    // Swiped Left -> Move to Next Tab (Right)
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < visibleLinks.length) {
+      const nextRoute = visibleLinks[nextIndex].getAttribute('data-route');
+      window.location.hash = '#' + nextRoute;
+    }
+  } else {
+    // Swiped Right -> Move to Previous Tab (Left)
+    const prevIndex = currentIndex - 1;
+    if (prevIndex >= 0) {
+      const prevRoute = visibleLinks[prevIndex].getAttribute('data-route');
+      window.location.hash = '#' + prevRoute;
+    }
+  }
 });
 
 initApp();
