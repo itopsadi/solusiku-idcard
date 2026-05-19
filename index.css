@@ -40,14 +40,15 @@ body {
   font-family: var(--font-sans);
   background: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden; /* Prevent body scrolling to secure fixed PWA elements */
   -webkit-font-smoothing: antialiased;
 }
 
 #app {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ===== SIDEBAR ===== */
@@ -143,8 +144,10 @@ body {
 #main-content {
   margin-left: var(--sidebar-w);
   flex: 1;
-  min-height: 100vh;
+  height: 100vh;
   background: var(--bg-primary);
+  overflow-y: auto; /* Enable clean independent scrolling inside content area */
+  -webkit-overflow-scrolling: touch;
 }
 
 #page-container {
@@ -925,8 +928,11 @@ body {
   /* Main content adjustments */
   #main-content {
     margin-left: 0;
+    height: 100vh;
     padding-top: 56px;
-    padding-bottom: 74px; /* Space for bottom nav */
+    padding-bottom: 80px; /* Safe padding above the fixed bottom navigation */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
   #page-container { padding: 12px; }
