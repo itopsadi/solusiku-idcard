@@ -17,7 +17,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-icon.svg', 'pwa-icon-512.png'],
+      includeAssets: ['favicon.svg', 'pwa-icon.svg', 'pwa-icon-512.png'],
       manifest: {
         id: 'idcard.cb2.07.solusiku',
         name: 'IT OPS - SOLUSIKU ID Card Control Center',
@@ -27,19 +27,19 @@ export default defineConfig({
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '.',
         scope: '/',
         lang: 'id',
         icons: [
           {
             src: 'pwa-icon.svg',
-            sizes: '192x192 512x512',
+            sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
           {
             src: 'pwa-icon-512.png',
-            sizes: '144x144 192x192 512x512',
+            sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
           }
@@ -49,7 +49,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 30000000 // 30 MB
       },
       devOptions: {
-        enabled: true
+        enabled: true,
+        type: 'module'
       }
     })
   ]

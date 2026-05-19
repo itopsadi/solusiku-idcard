@@ -265,17 +265,61 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 const handleInstallClick = async () => {
-  if (!deferredPrompt) return;
-  // Show the install prompt
-  deferredPrompt.prompt();
-  // Wait for the user to respond to the prompt
-  const { outcome } = await deferredPrompt.userChoice;
-  console.log(`[PWA] User response to install prompt: ${outcome}`);
-  // We've used the prompt, and can't use it again, throw it away
-  deferredPrompt = null;
-  // Hide the install UI
-  if (installContainer) installContainer.style.display = 'none';
-  if (globalBanner) globalBanner.style.display = 'none';
+  const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  if (!isSecure) {
+    const container = document.getElementById('toast-container');
+    if (container) {
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-error';
+      toast.style.background = '#e11d48';
+      toast.style.color = '#ffffff';
+      toast.style.padding = '12px 16px';
+      toast.style.borderRadius = '8px';
+      toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+      toast.style.marginBottom = '8px';
+      toast.style.fontSize = '0.85rem';
+      toast.style.lineHeight = '1.4';
+      toast.style.borderLeft = '4px solid #f43f5e';
+      toast.innerHTML = '⚠️ <b>PWA Gagal Diinstall</b>: Koneksi tidak aman (HTTP). Browser memblokir instalasi PWA di luar HTTPS. Silakan akses aplikasi melalui URL aman menggunakan <b>https://</b> atau local server.';
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 10000);
+    }
+    return;
+  }
+
+  if (!deferredPrompt) {
+    console.warn('[PWA] No deferred install prompt available.');
+    return;
+  }
+
+  try {
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`[PWA] User response to install prompt: ${outcome}`);
+  } catch (err) {
+    console.error('[PWA] Installation prompt failed:', err);
+    const container = document.getElementById('toast-container');
+    if (container) {
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-error';
+      toast.style.background = '#e11d48';
+      toast.style.color = '#ffffff';
+      toast.style.padding = '12px 16px';
+      toast.style.borderRadius = '8px';
+      toast.innerHTML = '⚠️ <b>Instalasi Gagal</b>: ' + err.message + '. Pastikan browser Anda mendukung PWA dan menggunakan koneksi HTTPS.';
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 6000);
+    }
+  } finally {
+    // We've used the prompt, and can't use it again, throw it away
+    deferredPrompt = null;
+    // Hide the install UI
+    if (installContainer) installContainer.style.display = 'none';
+    if (globalBanner) globalBanner.style.display = 'none';
+  }
 };
 
 if (installBtn) installBtn.addEventListener('click', handleInstallClick);
