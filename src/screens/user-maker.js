@@ -4,13 +4,26 @@ import {
   addGLPIUserGroup, getEmployee, REAL_GLPI_URL, fetchIDCardBlobURL
 } from '../services/api.js';
 
-function generateRandomPassword(length = 8) {
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+function generateRandomPassword(length = 10) {
+  const lowers = "abcdefghijklmnopqrstuvwxyz";
+  const uppers = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*_+";
+  
   let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  // Pastikan selalu ada minimal 1 karakter dari masing-masing tipe (Syarat kompleksitas GLPI)
+  password += lowers.charAt(Math.floor(Math.random() * lowers.length));
+  password += uppers.charAt(Math.floor(Math.random() * uppers.length));
+  password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  password += symbols.charAt(Math.floor(Math.random() * symbols.length));
+  
+  const allChars = lowers + uppers + numbers + symbols;
+  for (let i = password.length; i < length; i++) {
+    password += allChars.charAt(Math.floor(Math.random() * allChars.length));
   }
-  return password;
+  
+  // Acak urutan karakter agar polanya tidak selalu lower-upper-number-symbol di awal
+  return password.split('').sort(() => 0.5 - Math.random()).join('');
 }
 
 function generateEmail(fullName) {
