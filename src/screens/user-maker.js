@@ -368,9 +368,10 @@ export function renderUserMaker(container) {
                 </div>
                 <div style="min-width:0; flex:1;">
                   <div style="font-weight:700; color:var(--text-primary); font-size:1.05rem; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${emp.name}">${emp.name}</div>
-                  <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                  <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:2px;">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
                     <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${emp.jabatan}</span>
+                    ${emp.location && emp.location !== '-' ? `<span style="display:inline-flex; align-items:center; gap:3px; margin-left:4px; color:var(--primary-color); opacity:0.8;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 120px;">${emp.location}</span></span>` : ''}
                   </div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">
                     ${emp.department} &bull; NIK: ${emp.nik || '-'}
@@ -476,11 +477,15 @@ export function renderUserMaker(container) {
             let imageUrl = null;
             let downloadBlob = null;
             
+            console.log(`[UserMaker Avatar] Loading photo for ${emp.name} (ID: ${emp.id}, ticketId: ${emp.ticketId}, status: ${emp.status})`);
+            
             if (emp.status === 'approved' && emp.ticketId) {
               el.innerHTML = `
                 <div class="spinner" style="width:14px;height:14px;border-width:2px;border-color:var(--primary-color);border-top-color:transparent;"></div>
               `;
+              console.log(`[UserMaker Avatar] Trying fetchIDCardBlobURL(${emp.ticketId})...`);
               const idcardDoc = await fetchIDCardBlobURL(emp.ticketId);
+              console.log(`[UserMaker Avatar] fetchIDCardBlobURL result:`, idcardDoc ? `objectURL=${!!idcardDoc.objectURL}, blobSize=${idcardDoc.blob?.size}` : 'null');
               if (idcardDoc && idcardDoc.objectURL) {
                 imageUrl = idcardDoc.objectURL;
                 downloadBlob = idcardDoc.blob;
@@ -488,13 +493,16 @@ export function renderUserMaker(container) {
             }
             
             if (!imageUrl) {
+              console.log(`[UserMaker Avatar] Trying getEmployee fallback for ${emp.id}...`);
               const empData = await getEmployee(emp.id);
+              console.log(`[UserMaker Avatar] getEmployee result: processedPhoto=${!!empData?.processedPhoto}, photo=${!!empData?.photo}`);
               if (empData) {
                 imageUrl = empData.processedPhoto || empData.photo;
               }
             }
             
             if (imageUrl) {
+              console.log(`[UserMaker Avatar] ✅ Photo loaded for ${emp.name}`);
               el.innerHTML = `
                 <img src="${imageUrl}" 
                      style="width:100%; height:100%; object-fit:cover; cursor:zoom-in; transition:transform 0.2s ease;" 
@@ -508,10 +516,12 @@ export function renderUserMaker(container) {
                 showImagePopup(imageUrl, emp.name, downloadBlob || imageUrl);
               });
             } else {
+              console.warn(`[UserMaker Avatar] ❌ No photo found for ${emp.name} — showing initials`);
               el.innerHTML = emp.name.substring(0, 2).toUpperCase();
             }
           } catch (err) {
-            console.error('Failed to load avatar:', err);
+            console.error(`[UserMaker Avatar] Failed to load avatar for ${emp.name}:`, err);
+            el.innerHTML = emp.name.substring(0, 2).toUpperCase();
           }
         });
       }

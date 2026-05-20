@@ -103,7 +103,10 @@ function renderRows(employees) {
     <tr data-id="${emp.id}" data-status="${emp.status}" class="emp-row">
       <td data-label="Nama">
         <div class="emp-name">${emp.name}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; font-style: italic;">${emp.jabatan}</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+          <span style="font-style: italic;">${emp.jabatan}</span>
+          ${emp.location && emp.location !== '-' ? `<span style="display:inline-flex; align-items:center; gap:3px; color:var(--primary-color); opacity:0.8;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${emp.location}</span>` : ''}
+        </div>
       </td>
       <td data-label="Departemen" style="color:var(--text-muted);font-size:0.85rem">${emp.department || '-'}</td>
       <td data-label="NIK"><span class="emp-nik">${emp.nik}</span></td>

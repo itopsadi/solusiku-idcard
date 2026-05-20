@@ -155,33 +155,52 @@ async function clearPhotosDB() {
 
 let glpiSessionToken = null;
 let cachedAdminSessionToken = null;
+let pendingAdminSessionPromise = null;
 
 export async function getAdminSessionToken() {
   if (cachedAdminSessionToken) return cachedAdminSessionToken;
 
+  // Prevent race condition: if multiple callers request admin session simultaneously,
+  // only the first one creates the GLPI session. Others wait for the same promise.
+  if (pendingAdminSessionPromise) return pendingAdminSessionPromise;
+
   const adminUserToken = import.meta.env.VITE_GLPI_USER_TOKEN;
   if (!adminUserToken) return null;
 
-  try {
-    const adminSessionRes = await fetch(`${GLPI_API_URL}/initSession`, {
-      headers: {
-        'App-Token': GLPI_APP_TOKEN,
-        'Authorization': `user_token ${adminUserToken}`
+  pendingAdminSessionPromise = (async () => {
+    try {
+      const adminSessionRes = await fetch(`${GLPI_API_URL}/initSession`, {
+        headers: {
+          'App-Token': GLPI_APP_TOKEN,
+          'Authorization': `user_token ${adminUserToken}`
+        }
+      });
+      if (adminSessionRes.ok) {
+        const adminSessionData = await adminSessionRes.json();
+        cachedAdminSessionToken = adminSessionData.session_token;
+        console.log('[GLPI] Admin Bypass Session Init: SUCCESS');
+        return cachedAdminSessionToken;
+      } else {
+        const errText = await adminSessionRes.text();
+        console.error('[GLPI] Admin Bypass Session Init: FAILED', adminSessionRes.status, errText);
       }
-    });
-    if (adminSessionRes.ok) {
-      const adminSessionData = await adminSessionRes.json();
-      cachedAdminSessionToken = adminSessionData.session_token;
-      console.log('[GLPI] Admin Bypass Session Init: SUCCESS');
-      return cachedAdminSessionToken;
-    } else {
-      const errText = await adminSessionRes.text();
-      console.error('[GLPI] Admin Bypass Session Init: FAILED', adminSessionRes.status, errText);
+    } catch (e) {
+      console.error('[GLPI] Admin Bypass Init Exception:', e);
     }
-  } catch (e) {
-    console.error('[GLPI] Admin Bypass Init Exception:', e);
+    return null;
+  })();
+
+  try {
+    return await pendingAdminSessionPromise;
+  } finally {
+    pendingAdminSessionPromise = null;
   }
-  return null;
+}
+
+export function resetAdminSessionCache() {
+  cachedAdminSessionToken = null;
+  pendingAdminSessionPromise = null;
+  console.log('[GLPI] Admin session cache cleared');
 }
 
 export async function loginUser(username, password, rememberMe = true) {
@@ -524,16 +543,24 @@ export async function getEmployee(id) {
   let processedPhoto = await getPhotoDB(`${realId}_processed`);
 
   // SINKRONISASI CLOUD: Jika foto hasil proses (ID Card) hilang di lokal tapi tiketnya dari GLPI,
-  // coba tarik lampiran dokumen dari GLPI.
+  // coba tarik lampiran dokumen dari GLPI menggunakan endpoint yang benar.
   if (!processedPhoto && realId.toLowerCase().startsWith('glpi-')) {
     console.log('[Sync] Foto lokal tidak ditemukan, mencoba sinkronisasi dari GLPI...');
     const ticketId = realId.split('-')[1];
-    const cloudPhoto = await fetchIDCardFromGLPI(ticketId);
-    if (cloudPhoto) {
-      console.log('[Sync] Berhasil mendownload ID Card dari GLPI.');
-      processedPhoto = cloudPhoto;
-      // Simpan ke lokal (IndexedDB) agar pembukaan berikutnya lebih cepat
-      await savePhotoDB(`${realId}_processed`, cloudPhoto);
+    try {
+      const idcardDoc = await fetchIDCardBlobURL(ticketId);
+      if (idcardDoc && idcardDoc.blob) {
+        console.log('[Sync] Berhasil mendownload ID Card dari GLPI.');
+        // Konversi Blob ke DataURL (Base64) untuk disimpan di IndexedDB
+        processedPhoto = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(idcardDoc.blob);
+        });
+        await savePhotoDB(`${realId}_processed`, processedPhoto);
+      }
+    } catch (e) {
+      console.warn('[Sync] Gagal sinkronisasi ID Card:', e);
     }
   }
 
@@ -544,48 +571,6 @@ export async function getEmployee(id) {
   };
 }
 
-async function fetchIDCardFromGLPI(ticketId) {
-  const adminSession = await getAdminSessionToken();
-  const session = adminSession || await getSession();
-  if (!session || !GLPI_API_URL) return null;
-
-  try {
-    // 1. Cari dokumen yang terhubung ke tiket ini
-    const docItemRes = await fetch(`${GLPI_API_URL}/Ticket/${ticketId}/Document`, {
-      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
-    });
-
-    if (!docItemRes.ok) return null;
-    const documents = await docItemRes.json();
-    
-    // Cari dokumen yang namanya mengandung 'idcard' dan formatnya png/jpg
-    const idCardDoc = documents.find(doc => 
-      doc.name.toLowerCase().includes('id card') || 
-      doc.filename.toLowerCase().includes('idcard')
-    );
-
-    if (!idCardDoc) return null;
-
-    // 2. Download file aslinya
-    const fileRes = await fetch(`${GLPI_API_URL}/Document/${idCardDoc.id}?alt=media`, {
-      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
-    });
-
-    if (!fileRes.ok) return null;
-    const blob = await fileRes.blob();
-
-    // 3. Konversi Blob ke DataURL (Base64) agar bisa langsung ditampilkan di <img>
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
-    });
-
-  } catch (err) {
-    console.error('[Sync] Gagal sinkronisasi foto dari GLPI:', err);
-    return null;
-  }
-}
 
 /**
  * Fetch ID Card image from GLPI and return an Object URL (blob://).
@@ -604,10 +589,23 @@ export async function fetchIDCardBlobURL(ticketId) {
 
     // Strategy 1: Use Document_Item endpoint (correct GLPI REST API way)
     // GET /Document_Item?searchText[items_id]=RAW_ID&searchText[itemtype]=Ticket
-    const diRes = await fetch(
+    let diRes = await fetch(
       `${GLPI_API_URL}/Document_Item?searchText[items_id]=${rawId}&searchText[itemtype]=Ticket`,
       { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } }
     );
+
+    // Auto-recovery for dead/expired session tokens
+    if (diRes.status === 400 || diRes.status === 401) {
+      console.warn('[GLPI] Token expired or invalid. Auto-recovering session...');
+      resetAdminSessionCache();
+      const freshSession = await getAdminSessionToken();
+      if (freshSession) {
+        diRes = await fetch(
+          `${GLPI_API_URL}/Document_Item?searchText[items_id]=${rawId}&searchText[itemtype]=Ticket`,
+          { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': freshSession } }
+        );
+      }
+    }
 
     let documentIds = [];
     if (diRes.ok) {
@@ -893,7 +891,8 @@ export async function fetchGlobalLogo() {
 // ==========================================
 
 export async function checkGLPIUserExists(username, nik = null) {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return false;
 
   try {
@@ -918,7 +917,8 @@ export async function checkGLPIUserExists(username, nik = null) {
 }
 
 export async function createGLPIUser(payload) {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) throw new Error("No GLPI session available.");
 
   try {
@@ -956,7 +956,8 @@ export async function createGLPIUser(payload) {
 }
 
 export async function addGLPIUserEmail(userId, email) {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return false;
 
   try {
@@ -974,7 +975,8 @@ export async function addGLPIUserEmail(userId, email) {
 }
 
 export async function getAllGLPIGroups() {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return [];
   try {
     const res = await fetch(`${GLPI_API_URL}/Group?range=0-999`, { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } });
@@ -983,30 +985,9 @@ export async function getAllGLPIGroups() {
   } catch (err) { return []; }
 }
 
-export async function getAdminSession() {
-  const adminUserToken = import.meta.env.VITE_GLPI_USER_TOKEN;
-  if (!adminUserToken) return null;
-  try {
-    const res = await fetch(`${GLPI_API_URL}/initSession`, {
-      method: 'GET',
-      headers: {
-        'App-Token': GLPI_APP_TOKEN,
-        'Authorization': `user_token ${adminUserToken}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.session_token;
-    }
-  } catch (e) {
-    console.error('[AdminSession] Failed to init admin session:', e);
-  }
-  return null;
-}
-
 export async function getAllGLPILocations() {
+  const adminSession = await getAdminSessionToken();
   const userSession = await getSession();
-  const adminSession = await getAdminSession();
   const session = adminSession || userSession;
   
   if (!session || !GLPI_API_URL) return [];
@@ -1108,7 +1089,8 @@ export async function getAllGLPILocations() {
 }
 
 export async function getAllGLPIUsers() {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return [];
   try {
     const res = await fetch(`${GLPI_API_URL}/User?range=0-9999&is_deleted=0`, { headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session } });
@@ -1118,7 +1100,8 @@ export async function getAllGLPIUsers() {
 }
 
 export async function addGLPIUserGroup(userId, groupId) {
-  const session = await getSession();
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
   if (!session || !GLPI_API_URL) return false;
   try {
     const res = await fetch(`${GLPI_API_URL}/Group_User`, {

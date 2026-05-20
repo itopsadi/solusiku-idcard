@@ -6,7 +6,7 @@ import { renderSettings } from './screens/settings.js';
 import { renderFinished } from './screens/finished.js';
 import { renderLogin } from './screens/login.js';
 import { renderUserMaker } from './screens/user-maker.js';
-import { logoutUser, fetchGlobalLogo, getStats, getEmployees } from './services/api.js';
+import { logoutUser, fetchGlobalLogo, getStats, getEmployees, resetAdminSessionCache } from './services/api.js';
 import { setLogo } from './templates/idcard.js';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -97,6 +97,9 @@ document.addEventListener('click', (e) => {
       if (loadingOverlay) loadingOverlay.style.display = 'none';
       if (icon) icon.style.animation = '';
     }, 10000);
+
+    // Reset admin session cache agar data benar-benar segar dari GLPI
+    resetAdminSessionCache();
 
     getEmployees(true).then(() => {
       clearTimeout(timeout);
