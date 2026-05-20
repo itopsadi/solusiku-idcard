@@ -84,12 +84,12 @@ document.addEventListener('click', (e) => {
     const btn = e.target.closest('#floating-refresh-btn');
     const icon = btn.querySelector('svg');
     const loadingOverlay = document.getElementById('global-loading');
-    
+
     // Tampilkan loading di tengah layar
     if (loadingOverlay) {
       loadingOverlay.style.display = 'flex';
     }
-    
+
     if (icon) icon.style.animation = 'spin 1s linear infinite';
 
     // Timeout safety: Tutup loading setelah 10 detik jika tidak selesai-selesai
@@ -120,7 +120,7 @@ document.addEventListener('click', (e) => {
     logoutUser();
     document.body.classList.add('logged-out');
     document.body.classList.remove('is-super-admin', 'is-technical');
-    
+
     // Clear ALL caches (Service Worker + Cache Storage)
     (async () => {
       try {
@@ -155,7 +155,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('hashchange', () => {
   const hash = window.location.hash || '#/';
   const route = hash.replace('#', '');
-  
+
   document.querySelectorAll('.mobile-nav-link').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-route') === route);
   });
@@ -166,18 +166,18 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260519-v1';
+  const CURRENT_DEPLOYMENT_KEY = '20260520-v1';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
-  
+
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
     console.log('[PWA] Versi baru terdeteksi. Melakukan logout paksa dan pembersihan cache...');
-    
+
     // Bersihkan sesi & profil pengguna
     localStorage.removeItem('solusiku_user_session');
     sessionStorage.removeItem('solusiku_user_session');
     localStorage.removeItem('solusiku_user_profile');
     sessionStorage.removeItem('solusiku_user_profile');
-    
+
     // Bersihkan seluruh Cache Storage PWA
     try {
       if ('caches' in window) {
@@ -189,10 +189,10 @@ async function initApp() {
     } catch (e) {
       console.warn('[PWA] Gagal membersihkan cache storage:', e);
     }
-    
+
     // Simpan kunci deployment terbaru
     localStorage.setItem('solusiku_deployment_key', CURRENT_DEPLOYMENT_KEY);
-    
+
     // Paksa reload halaman ke login
     window.location.hash = '/login';
     window.location.reload(true);
@@ -200,10 +200,10 @@ async function initApp() {
   }
 
   const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
-  
+
   if (sessionToken) {
     document.body.classList.remove('logged-out');
-    
+
     // Paksa ambil data terbaru dari GLPI saat startup dan TUNGGU sampai selesai
     try {
       await getEmployees(true);
@@ -220,12 +220,12 @@ async function initApp() {
         if (nameEl) nameEl.textContent = p.name;
         if (roleEl) roleEl.textContent = p.role;
         if (avatarEl) avatarEl.textContent = p.avatar;
-        
+
         // Role-based UI: show/hide Settings & User Maker
         const r = (p.role || '').toLowerCase();
         const isSuperAdmin = r.includes('super-admin');
         const isTechnical = isSuperAdmin || r.includes('it operation') || r.includes('it ops') || r.includes('technician') || r.includes('technical') || r.includes('it op');
-        
+
         if (isSuperAdmin) {
           document.body.classList.add('is-super-admin');
         } else {
@@ -238,7 +238,7 @@ async function initApp() {
           document.body.classList.remove('is-technical');
         }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       const globalLogo = await fetchGlobalLogo();
@@ -292,10 +292,10 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   // Stash the event so it can be triggered later.
   deferredPrompt = e;
-  
+
   // Update UI notify the user they can install the PWA
   if (installContainer) installContainer.style.display = 'block'; // sidebar item
-  
+
   // Show global floating banner if not previously dismissed
   if (globalBanner && !localStorage.getItem('pwa_banner_dismissed')) {
     globalBanner.style.display = 'flex';
@@ -304,7 +304,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 const handleInstallClick = async () => {
   const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
+
   if (!isSecure) {
     const container = document.getElementById('toast-container');
     if (container) {
@@ -389,7 +389,7 @@ async function checkNotifications() {
   try {
     const stats = await getStats();
     const currentPending = stats.pending || 0;
-    
+
     // Update Sidebar Badge
     const badge = document.getElementById('nav-badge-pending');
     if (badge) {
@@ -432,7 +432,7 @@ window.addEventListener('unhandledrejection', (event) => {
   const err = event.reason;
   const msg = err?.message || String(err);
   console.error('[Global] Unhandled rejection:', msg);
-  
+
   // Show toast if possible
   try {
     const { showToast } = window._toastModule || {};
@@ -444,7 +444,7 @@ window.addEventListener('unhandledrejection', (event) => {
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 5000);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // If page is blank (no visible content), navigate back to home
   const pageContainer = document.getElementById('page-container');
