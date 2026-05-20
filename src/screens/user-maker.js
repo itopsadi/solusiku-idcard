@@ -8,7 +8,7 @@ function generateRandomPassword(length = 10) {
   const lowers = "abcdefghijklmnopqrstuvwxyz";
   const uppers = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const numbers = "0123456789";
-  const symbols = "!@#$%^&*_+";
+  const symbols = "!@#$";
   
   let password = "";
   // Pastikan selalu ada minimal 1 karakter dari masing-masing tipe (Syarat kompleksitas GLPI)
