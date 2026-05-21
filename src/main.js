@@ -9,6 +9,7 @@ import { renderUserMaker } from './screens/user-maker.js';
 import { logoutUser, fetchGlobalLogo, getStats, getEmployees, resetAdminSessionCache } from './services/api.js';
 import { setLogo } from './templates/idcard.js';
 import { registerSW } from 'virtual:pwa-register';
+import { showToast } from './utils/toast.js';
 
 // PWA Registration
 try {
@@ -399,9 +400,24 @@ async function checkNotifications() {
 
     // Trigger Notification if count increased
     if (lastPendingCount !== -1 && currentPending > lastPendingCount) {
+      const newDataCount = currentPending - lastPendingCount;
+      const msg = `Ada ${newDataCount} data baru menunggu foto!`;
+      
+      // Toast notification (in-app)
+      showToast(msg, 'info');
+
+      // Browser notification (system-level)
       if (Notification.permission === 'granted') {
         new Notification('IT OPS Solusiku', {
-          body: `Ada ${currentPending - lastPendingCount} data baru menunggu foto!`,
+          body: msg,
+          icon: '/favicon.svg'
+        });
+      }
+    } else if (lastPendingCount === -1 && currentPending > 0) {
+      // First load with pending items
+      if (Notification.permission === 'granted') {
+        new Notification('IT OPS Solusiku', {
+          body: `Ada ${currentPending} data yang menunggu untuk diproses.`,
           icon: '/favicon.svg'
         });
       }
@@ -419,8 +435,8 @@ if ('Notification' in window) {
   }
 }
 
-// Check every 3 minutes (180000 ms)
-setInterval(checkNotifications, 180000);
+// Check every 30 seconds (30000 ms)
+setInterval(checkNotifications, 30000);
 // Initial check
 checkNotifications();
 

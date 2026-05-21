@@ -32,6 +32,24 @@ export async function renderSettings(container) {
         </div>
       </div>
     </div>
+
+    <div class="card animate-in delay-2" style="max-width: 600px; margin: 0 auto; margin-top: 2rem;">
+      <h3 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Uji Coba Notifikasi</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+        Gunakan tombol di bawah untuk menguji apakah notifikasi toast dan browser berjalan dengan baik.
+      </p>
+
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <button id="btn-test-toast" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Test Toast Notification
+        </button>
+        <button id="btn-test-browser" class="btn" style="background: var(--surface-light); color: var(--text); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          Test Browser Notification
+        </button>
+      </div>
+    </div>
   `;
 
   const logoInput = container.querySelector('#settings-logo-input');
@@ -62,6 +80,42 @@ export async function renderSettings(container) {
       showToast('Logo berhasil tersimpan secara permanen! Tersinkronisasi di semua perangkat.', 'success');
     } else {
       showToast('Gagal menyimpan ke server GLPI. Silakan periksa koneksi atau konfigurasi.', 'error');
+    }
+  });
+
+  const btnTestToast = container.querySelector('#btn-test-toast');
+  const btnTestBrowser = container.querySelector('#btn-test-browser');
+
+  btnTestToast.addEventListener('click', () => {
+    showToast('Ini adalah pesan ujicoba toast notification!', 'info');
+  });
+
+  btnTestBrowser.addEventListener('click', () => {
+    if (!('Notification' in window)) {
+      showToast('Browser ini tidak mendukung notifikasi desktop.', 'error');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      new Notification('IT OPS Solusiku', {
+        body: 'Notifikasi browser berjalan dengan baik!',
+        icon: '/favicon.svg'
+      });
+      showToast('Notifikasi browser telah dikirim.', 'success');
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification('IT OPS Solusiku', {
+            body: 'Notifikasi browser berhasil diizinkan dan berjalan!',
+            icon: '/favicon.svg'
+          });
+          showToast('Notifikasi browser diizinkan.', 'success');
+        } else {
+          showToast('Izin notifikasi ditolak oleh pengguna.', 'warning');
+        }
+      });
+    } else {
+      showToast('Izin notifikasi sebelumnya telah ditolak. Silakan izinkan melalui pengaturan browser Anda.', 'error');
     }
   });
 }
