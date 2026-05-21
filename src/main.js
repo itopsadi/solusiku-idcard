@@ -167,7 +167,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260521-v2';
+  const CURRENT_DEPLOYMENT_KEY = '20260521-v3';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -403,6 +403,9 @@ async function checkNotifications() {
       const newDataCount = currentPending - lastPendingCount;
       const msg = `Ada ${newDataCount} data baru menunggu foto!`;
 
+      // Play Sound
+      playNotificationSound();
+
       // Toast notification (in-app)
       showToast(msg, 'info');
 
@@ -410,7 +413,7 @@ async function checkNotifications() {
       if (Notification.permission === 'granted') {
         new Notification('IT OPS Solusiku', {
           body: msg,
-          icon: '/favicon.svg'
+          icon: '/pwa-icon-512.png'
         });
       }
     } else if (lastPendingCount === -1 && currentPending > 0) {
@@ -418,7 +421,7 @@ async function checkNotifications() {
       if (Notification.permission === 'granted') {
         new Notification('IT OPS Solusiku', {
           body: `Ada ${currentPending} data yang menunggu untuk diproses.`,
-          icon: '/favicon.svg'
+          icon: '/pwa-icon-512.png'
         });
       }
     }
@@ -439,6 +442,32 @@ if ('Notification' in window) {
 setInterval(checkNotifications, 30000);
 // Initial check
 checkNotifications();
+
+// --- Notification Sound Function ---
+function playNotificationSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    // Suara "Ting" (Ping notification)
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+    oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1); // Drop to A4
+
+    // Volume envelope
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.3);
+  } catch (e) {
+    console.warn("AudioContext not supported or blocked", e);
+  }
+}
 
 // ============================================================
 // Global Error Boundary — catch crashes from WASM/AI models

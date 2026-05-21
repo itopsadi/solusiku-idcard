@@ -36,8 +36,12 @@ export async function renderSettings(container) {
     <div class="card animate-in delay-2" style="max-width: 600px; margin: 0 auto; margin-top: 2rem;">
       <h3 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Uji Coba Notifikasi</h3>
       <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
-        Gunakan tombol di bawah untuk menguji apakah notifikasi toast dan browser berjalan dengan baik.
+        Gunakan tombol di bawah untuk menguji apakah notifikasi toast dan browser berjalan dengan baik. Jika status belum diizinkan, klik tombol untuk meminta akses (Always Allow).
       </p>
+
+      <div style="margin-bottom: 1rem; font-size: 0.9rem;">
+        Status Izin Browser: <span id="notif-status-badge" style="font-weight: bold; padding: 2px 8px; border-radius: 4px; background: var(--surface-light);">Memeriksa...</span>
+      </div>
 
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
         <button id="btn-test-toast" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
@@ -85,8 +89,54 @@ export async function renderSettings(container) {
 
   const btnTestToast = container.querySelector('#btn-test-toast');
   const btnTestBrowser = container.querySelector('#btn-test-browser');
+  const statusBadge = container.querySelector('#notif-status-badge');
+
+  function updateNotifStatus() {
+    if (!('Notification' in window)) {
+      statusBadge.textContent = 'Tidak Didukung';
+      statusBadge.style.color = '#e11d48';
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      statusBadge.textContent = 'Diizinkan (Always Allow)';
+      statusBadge.style.color = '#10b981';
+      statusBadge.style.background = 'rgba(16, 185, 129, 0.1)';
+    } else if (Notification.permission === 'denied') {
+      statusBadge.textContent = 'Ditolak (Block)';
+      statusBadge.style.color = '#e11d48';
+      statusBadge.style.background = 'rgba(225, 29, 72, 0.1)';
+    } else {
+      statusBadge.textContent = 'Belum Diizinkan (Default)';
+      statusBadge.style.color = '#f59e0b';
+      statusBadge.style.background = 'rgba(245, 158, 11, 0.1)';
+    }
+  }
+
+  updateNotifStatus();
+
+  function playTestSound() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1); 
+      
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch(e) { }
+  }
 
   btnTestToast.addEventListener('click', () => {
+    playTestSound();
     showToast('Ini adalah pesan ujicoba toast notification!', 'info');
   });
 
@@ -97,17 +147,20 @@ export async function renderSettings(container) {
     }
 
     if (Notification.permission === 'granted') {
+      playTestSound();
       new Notification('IT OPS Solusiku', {
         body: 'Notifikasi browser berjalan dengan baik!',
-        icon: '/favicon.svg'
+        icon: '/pwa-icon-512.png'
       });
       showToast('Notifikasi browser telah dikirim.', 'success');
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then(permission => {
+        updateNotifStatus();
         if (permission === 'granted') {
+          playTestSound();
           new Notification('IT OPS Solusiku', {
-            body: 'Notifikasi browser berhasil diizinkan dan berjalan!',
-            icon: '/favicon.svg'
+            body: 'Notifikasi browser berhasil diizinkan (Always Allow)!',
+            icon: '/pwa-icon-512.png'
           });
           showToast('Notifikasi browser diizinkan.', 'success');
         } else {
