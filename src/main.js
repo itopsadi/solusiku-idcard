@@ -167,7 +167,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260522-v8';
+  const CURRENT_DEPLOYMENT_KEY = '20260522-v9';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -395,6 +395,33 @@ async function checkNotifications() {
     if (badge) {
       badge.textContent = stats.waiting;
       badge.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
+    }
+
+    // Update Mobile Nav Badge (menunggu foto)
+    let badgeMobile = document.getElementById('nav-badge-pending-mobile');
+    if (!badgeMobile) {
+      const homeLink = document.querySelector('.mobile-nav-link[data-route="/"]');
+      if (homeLink) {
+        homeLink.style.position = 'relative';
+        badgeMobile = document.createElement('span');
+        badgeMobile.id = 'nav-badge-pending-mobile';
+        badgeMobile.style = 'display:none; position:absolute; top:4px; right:15%; background:var(--rose); color:white; font-size:0.6rem; font-weight:800; border-radius:10px; padding:1px 5px; min-width:16px; text-align:center; box-shadow:0 2px 4px rgba(225,29,72,0.4);';
+        homeLink.appendChild(badgeMobile);
+      }
+    }
+
+    if (badgeMobile) {
+      badgeMobile.textContent = stats.waiting;
+      badgeMobile.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
+    }
+
+    // Update PWA App Icon Badge (jika disupport oleh browser/OS)
+    if ('setAppBadge' in navigator) {
+      if (stats.waiting > 0) {
+        navigator.setAppBadge(stats.waiting).catch(console.error);
+      } else {
+        navigator.clearAppBadge().catch(console.error);
+      }
     }
 
     // Trigger Notification if count increased
