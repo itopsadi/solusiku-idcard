@@ -8,7 +8,7 @@ export async function removeBackground(imageDataURL, onProgress) {
   if (onProgress) onProgress(0);
 
   // 1. Downscale to reduce memory pressure (especially on mobile)
-  const MAX_DIM = 600; // Reduced from 800 to prevent OOM on mobile
+  const MAX_DIM = 800; // Increased from 600 to 800 to improve blurriness while keeping memory safe
   const img = new Image();
   await new Promise((resolve, reject) => {
     img.onload = resolve;
@@ -30,7 +30,7 @@ export async function removeBackground(imageDataURL, onProgress) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, width, height);
 
-  const inputBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  const inputBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
   if (onProgress) onProgress(10);
 
   // 2. Try GPU first, fallback to CPU if it crashes
@@ -41,7 +41,7 @@ export async function removeBackground(imageDataURL, onProgress) {
           onProgress(Math.min(Math.round(10 + (current / total) * 85), 95));
         }
       },
-      output: { format: 'image/png', quality: 0.85 },
+      output: { format: 'image/png', quality: 0.95 },
       device,
       model: 'small', // Use 'small' model — much lighter, still good quality
     });
