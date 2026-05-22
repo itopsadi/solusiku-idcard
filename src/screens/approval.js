@@ -2,7 +2,7 @@ import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmploy
 import { exportToImage, downloadFile } from '../services/export.js';
 import { triggerWebhook } from '../services/webhook.js';
 import { renderIDCard, getLogo } from '../templates/idcard.js';
-import { navigate } from '../utils/router.js';
+import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import { formatDate, getTicketUrl } from '../utils/helpers.js';
 
@@ -287,7 +287,7 @@ export async function renderApproval(container, empId) {
   // ──────────────────────────────────────────────────────────────
   container.querySelector('#btn-back').addEventListener('click', function() {
     if (glpiURL) URL.revokeObjectURL(glpiURL);
-    navigate(isApproved ? '/finished' : '/');
+    goBack(isApproved ? '/finished' : '/');
   });
 
   // ──────────────────────────────────────────────────────────────

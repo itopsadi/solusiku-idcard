@@ -6,8 +6,22 @@ export function registerRoute(path, handler) {
   routes[path] = handler;
 }
 
-export function navigate(path) {
-  window.location.hash = path;
+export function navigate(path, replace = false) {
+  if (replace) {
+    window.location.replace('#' + path.replace(/^#/, ''));
+  } else {
+    window.location.hash = path;
+  }
+}
+
+export function goBack(fallbackPath = '/') {
+  // Jika ini berjalan di PWA / tab baru, window.history.length > 1 atau > 2 bisa jadi acuan.
+  // Tapi untuk aman, kita cek apakah ada riwayat di tab ini yang bukan dari luar aplikasi.
+  if (window.history.length > 2) {
+    window.history.back();
+  } else {
+    navigate(fallbackPath, true);
+  }
 }
 
 export function getParams() {

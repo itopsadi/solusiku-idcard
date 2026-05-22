@@ -4,7 +4,7 @@ import { initCamera, capturePhoto, switchCamera, stopCamera, isCameraSupported, 
 import { removeBackground } from '../services/background-removal.js';
 import { triggerWebhook } from '../services/webhook.js';
 import { statusBadge, formatDate, blobToDataURL, getTicketUrl } from '../utils/helpers.js';
-import { navigate } from '../utils/router.js';
+import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.min.css';
@@ -133,7 +133,7 @@ export async function renderDetail(container, empId) {
   let cameraActive = false;
 
   // Back button
-  container.querySelector('#btn-back').addEventListener('click', () => navigate('/'));
+  container.querySelector('#btn-back').addEventListener('click', () => goBack('/'));
 
   // Tab switching
   container.querySelectorAll('.tab-btn').forEach(btn => {
