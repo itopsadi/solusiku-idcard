@@ -192,9 +192,10 @@
 
   <!-- Mobile Bottom Navigation -->
   <nav class="mobile-nav">
-    <a href="#/" class="mobile-nav-link active" data-route="/">
+    <a href="#/" class="mobile-nav-link active" data-route="/" style="position: relative;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Home</span>
+      <span id="nav-badge-pending-mobile" style="display:none; position:absolute; top:4px; right:15%; background:var(--rose); color:white; font-size:0.6rem; font-weight:800; border-radius:10px; padding:1px 5px; min-width:16px; text-align:center; box-shadow:0 2px 4px rgba(225,29,72,0.4);">0</span>
     </a>
     <a href="#/finished" class="mobile-nav-link" data-route="/finished">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>

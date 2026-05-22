@@ -397,6 +397,22 @@ async function checkNotifications() {
       badge.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
     }
 
+    // Update Mobile Nav Badge (menunggu foto)
+    const badgeMobile = document.getElementById('nav-badge-pending-mobile');
+    if (badgeMobile) {
+      badgeMobile.textContent = stats.waiting;
+      badgeMobile.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
+    }
+
+    // Update PWA App Icon Badge (jika disupport oleh browser/OS)
+    if ('setAppBadge' in navigator) {
+      if (stats.waiting > 0) {
+        navigator.setAppBadge(stats.waiting).catch(console.error);
+      } else {
+        navigator.clearAppBadge().catch(console.error);
+      }
+    }
+
     // Trigger Notification if count increased
     if (lastStats !== null) {
       let msgs = [];
