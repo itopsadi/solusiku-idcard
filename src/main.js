@@ -167,7 +167,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260522-v5';
+  const CURRENT_DEPLOYMENT_KEY = '20260522-v7';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -381,7 +381,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // --- Polling & Notification Logic ---
-let lastPendingCount = -1;
+let lastStats = null;
 
 async function checkNotifications() {
   const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
@@ -389,52 +389,64 @@ async function checkNotifications() {
 
   try {
     const stats = await getStats();
-    const currentPending = stats.pending || 0;
 
-    // Update Sidebar Badge
+    // Update Sidebar Badge (menunggu foto)
     const badge = document.getElementById('nav-badge-pending');
     if (badge) {
-      badge.textContent = currentPending;
-      badge.style.display = currentPending > 0 ? 'inline-block' : 'none';
+      badge.textContent = stats.waiting;
+      badge.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
     }
 
     // Trigger Notification if count increased
-    if (lastPendingCount !== -1 && currentPending > lastPendingCount) {
-      const newDataCount = currentPending - lastPendingCount;
-      const msg = `Ada ${newDataCount} data baru menunggu foto!`;
+    if (lastStats !== null) {
+      let msgs = [];
 
-      // Play Sound
-      playNotificationSound();
+      // Jika ada tiket baru masuk (menunggu foto)
+      if (stats.waiting > lastStats.waiting) {
+        msgs.push(`Ada ${stats.waiting - lastStats.waiting} data baru menunggu foto!`);
+      }
 
-      // Toast notification (in-app)
-      showToast(msg, 'info');
+      // Jika ada tiket yang baru saja selesai diproses/diapprove technician
+      if (stats.approved > lastStats.approved) {
+        msgs.push(`Ada ${stats.approved - lastStats.approved} ID Card baru saja selesai diproses!`);
+      }
 
-      // Browser/PWA notification (system-level)
-      if (Notification.permission === 'granted') {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification('IT OPS Solusiku', {
-              body: msg,
-              icon: '/pwa-icon-512.png',
-              badge: '/favicon.svg',
-              vibrate: [200, 100, 200]
+      if (msgs.length > 0) {
+        const msg = msgs.join('\\n');
+
+        // Play Sound
+        playNotificationSound();
+
+        // Toast notification (in-app)
+        showToast(msg, 'info');
+
+        // Browser/PWA notification (system-level)
+        if (Notification.permission === 'granted') {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification('IT OPS Solusiku', {
+                body: msg,
+                icon: '/pwa-icon-512.png',
+                badge: '/favicon.svg',
+                vibrate: [200, 100, 200]
+              });
             });
-          });
-        } else {
-          const notif = new Notification('IT OPS Solusiku', {
-            body: msg,
-            icon: '/pwa-icon-512.png'
-          });
-          notif.onclick = function() {
-            window.focus();
-            this.close();
-          };
+          } else {
+            const notif = new Notification('IT OPS Solusiku', {
+              body: msg,
+              icon: '/pwa-icon-512.png'
+            });
+            notif.onclick = function () {
+              window.focus();
+              this.close();
+            };
+          }
         }
       }
-    } else if (lastPendingCount === -1 && currentPending > 0) {
+    } else if (stats.waiting > 0) {
       // First load with pending items
       if (Notification.permission === 'granted') {
-        const msg = `Ada ${currentPending} data yang menunggu untuk diproses.`;
+        const msg = `Ada ${stats.waiting} data yang menunggu untuk diproses.`;
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(reg => {
             reg.showNotification('IT OPS Solusiku', {
@@ -449,14 +461,14 @@ async function checkNotifications() {
             body: msg,
             icon: '/pwa-icon-512.png'
           });
-          notif.onclick = function() {
+          notif.onclick = function () {
             window.focus();
             this.close();
           };
         }
       }
     }
-    lastPendingCount = currentPending;
+    lastStats = { ...stats };
   } catch (err) {
     console.error('Polling error:', err);
   }
