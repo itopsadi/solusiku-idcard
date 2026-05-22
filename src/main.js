@@ -167,7 +167,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260522-v7';
+  const CURRENT_DEPLOYMENT_KEY = '20260522-v8';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -395,22 +395,6 @@ async function checkNotifications() {
     if (badge) {
       badge.textContent = stats.waiting;
       badge.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
-    }
-
-    // Update Mobile Nav Badge (menunggu foto)
-    const badgeMobile = document.getElementById('nav-badge-pending-mobile');
-    if (badgeMobile) {
-      badgeMobile.textContent = stats.waiting;
-      badgeMobile.style.display = stats.waiting > 0 ? 'inline-block' : 'none';
-    }
-
-    // Update PWA App Icon Badge (jika disupport oleh browser/OS)
-    if ('setAppBadge' in navigator) {
-      if (stats.waiting > 0) {
-        navigator.setAppBadge(stats.waiting).catch(console.error);
-      } else {
-        navigator.clearAppBadge().catch(console.error);
-      }
     }
 
     // Trigger Notification if count increased
