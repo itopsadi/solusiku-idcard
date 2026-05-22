@@ -258,125 +258,169 @@ async function initApp() {
 }
 
 // --- PWA Installation Logic ---
-// --- PWA Installation Logic ---
 let deferredPrompt;
 const installContainer = document.getElementById('pwa-install-container');
 const installBtn = document.getElementById('pwa-install-btn');
 const globalBanner = document.getElementById('pwa-global-banner');
 const bannerInstallBtn = document.getElementById('pwa-banner-install');
 const bannerCloseBtn = document.getElementById('pwa-banner-close');
-const iosInstruction = document.getElementById('ios-install-instruction');
-const iosCloseBtn = document.getElementById('ios-instruction-close');
 
-// Detect iOS
+// Custom Modal Elements
+const installModal = document.getElementById('pwa-install-modal');
+const btnDownloadCrt = document.getElementById('btn-download-crt');
+const step2Pwa = document.getElementById('step-2-pwa');
+const step2Badge = document.getElementById('step-2-badge');
+const instructionAndroid = document.getElementById('instruction-android');
+const instructionIos = document.getElementById('instruction-ios');
+const btnModalInstallPwa = document.getElementById('btn-install-pwa');
+const btnCloseModal = document.getElementById('close-pwa-modal');
+const iosCertHint = document.getElementById('ios-cert-hint');
+
+// Detect Devices
 const isIos = () => {
   const userAgent = window.navigator.userAgent.toLowerCase();
   return /iphone|ipad|ipod/.test(userAgent);
 };
-// Detect if running as PWA
-const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+const isInStandaloneMode = () => {
+  return ('standalone' in window.navigator && window.navigator.standalone) || window.matchMedia('(display-mode: standalone)').matches;
+};
 
-// Show iOS instruction if on iOS and not installed, and hasn't been dismissed
-if (isIos() && !isInStandaloneMode() && !localStorage.getItem('ios_pwa_dismissed')) {
-  if (iosInstruction) iosInstruction.style.display = 'block';
+// Function to Show Custom Modal
+window.showPwaInstallModal = function() {
+  if (installModal) {
+    installModal.style.display = 'flex';
+    
+    // Reset Step 2
+    if (step2Pwa) {
+      step2Pwa.style.opacity = '0.5';
+      step2Pwa.style.pointerEvents = 'none';
+    }
+    if (step2Badge) {
+      step2Badge.style.background = '#94a3b8';
+    }
+    
+    // Platform specifics
+    if (isIos()) {
+      if (instructionIos) instructionIos.style.display = 'block';
+      if (instructionAndroid) instructionAndroid.style.display = 'none';
+      if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'none';
+      if (iosCertHint) iosCertHint.style.display = 'block';
+    } else {
+      if (instructionIos) instructionIos.style.display = 'none';
+      if (instructionAndroid) instructionAndroid.style.display = 'block';
+      if (iosCertHint) iosCertHint.style.display = 'none';
+      
+      if (deferredPrompt) {
+         if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'flex';
+         if (instructionAndroid) instructionAndroid.innerHTML = "Klik tombol di bawah ini untuk menginstal aplikasi.";
+      } else {
+         if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'none';
+         if (instructionAndroid) instructionAndroid.innerHTML = "Browser Anda tidak mendukung instalasi otomatis, silahkan pilih <b>'Install App'</b> / <b>'Add to Home Screen'</b> dari menu browser (titik tiga).";
+      }
+    }
+  }
 }
 
-if (iosCloseBtn) {
-  iosCloseBtn.addEventListener('click', () => {
-    if (iosInstruction) iosInstruction.style.display = 'none';
-    localStorage.setItem('ios_pwa_dismissed', 'true');
+// Sidebar & Global Banner triggers modal
+if (installBtn) installBtn.addEventListener('click', window.showPwaInstallModal);
+
+// Make the entire global banner clickable
+if (globalBanner) {
+  globalBanner.addEventListener('click', (e) => {
+    // Do nothing if the close button was clicked
+    if (e.target.closest('#pwa-banner-close')) return;
+    window.showPwaInstallModal();
   });
 }
 
-window.addEventListener('beforeinstallprompt', (e) => {
-  // Prevent the mini-infobar from appearing on mobile
-  e.preventDefault();
-  // Stash the event so it can be triggered later.
-  deferredPrompt = e;
-
-  // Update UI notify the user they can install the PWA
-  if (installContainer) installContainer.style.display = 'block'; // sidebar item
-
-  // Show global floating banner if not previously dismissed
-  if (globalBanner && !localStorage.getItem('pwa_banner_dismissed')) {
-    globalBanner.style.display = 'flex';
-  }
-});
-
-const handleInstallClick = async () => {
-  const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-  if (!isSecure) {
-    const container = document.getElementById('toast-container');
-    if (container) {
-      const toast = document.createElement('div');
-      toast.className = 'toast toast-error';
-      toast.style.background = '#e11d48';
-      toast.style.color = '#ffffff';
-      toast.style.padding = '12px 16px';
-      toast.style.borderRadius = '8px';
-      toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
-      toast.style.marginBottom = '8px';
-      toast.style.fontSize = '0.85rem';
-      toast.style.lineHeight = '1.4';
-      toast.style.borderLeft = '4px solid #f43f5e';
-      toast.innerHTML = '⚠️ <b>PWA Gagal Diinstall</b>: Koneksi tidak aman (HTTP). Browser memblokir instalasi PWA di luar HTTPS. Silakan akses aplikasi melalui URL aman menggunakan <b>https://</b> atau local server.';
-      container.appendChild(toast);
-      setTimeout(() => toast.remove(), 10000);
-    }
-    return;
-  }
-
-  if (!deferredPrompt) {
-    console.warn('[PWA] No deferred install prompt available.');
-    return;
-  }
-
-  try {
-    // Show the install prompt
-    deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`[PWA] User response to install prompt: ${outcome}`);
-  } catch (err) {
-    console.error('[PWA] Installation prompt failed:', err);
-    const container = document.getElementById('toast-container');
-    if (container) {
-      const toast = document.createElement('div');
-      toast.className = 'toast toast-error';
-      toast.style.background = '#e11d48';
-      toast.style.color = '#ffffff';
-      toast.style.padding = '12px 16px';
-      toast.style.borderRadius = '8px';
-      toast.innerHTML = '⚠️ <b>Instalasi Gagal</b>: ' + err.message + '. Pastikan browser Anda mendukung PWA dan menggunakan koneksi HTTPS.';
-      container.appendChild(toast);
-      setTimeout(() => toast.remove(), 6000);
-    }
-  } finally {
-    // We've used the prompt, and can't use it again, throw it away
-    deferredPrompt = null;
-    // Hide the install UI
-    if (installContainer) installContainer.style.display = 'none';
-    if (globalBanner) globalBanner.style.display = 'none';
-  }
-};
-
-if (installBtn) installBtn.addEventListener('click', handleInstallClick);
-if (bannerInstallBtn) bannerInstallBtn.addEventListener('click', handleInstallClick);
-
 if (bannerCloseBtn) {
-  bannerCloseBtn.addEventListener('click', () => {
+  bannerCloseBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the banner click event from firing
     if (globalBanner) globalBanner.style.display = 'none';
     localStorage.setItem('pwa_banner_dismissed', 'true');
   });
 }
 
+// Modal Handlers
+if (btnDownloadCrt) {
+  btnDownloadCrt.addEventListener('click', () => {
+    // Unlock Step 2 after clicking download
+    setTimeout(() => {
+      if (step2Pwa) {
+        step2Pwa.style.opacity = '1';
+        step2Pwa.style.pointerEvents = 'auto';
+      }
+      if (step2Badge) {
+        step2Badge.style.background = 'var(--primary-color)';
+      }
+    }, 1000);
+  });
+}
+
+if (btnModalInstallPwa) {
+  btnModalInstallPwa.addEventListener('click', async () => {
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isSecure) {
+      alert("PWA Gagal Diinstall: Koneksi tidak aman (HTTP). Browser memblokir instalasi PWA di luar HTTPS.");
+      return;
+    }
+
+    if (!deferredPrompt) return;
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`[PWA] User response to install prompt: ${outcome}`);
+      if (outcome === 'accepted') {
+        if (installModal) installModal.style.display = 'none';
+        if (globalBanner) globalBanner.style.display = 'none';
+      }
+    } catch(e) {
+      console.error(e);
+      alert("Instalasi gagal: " + e.message);
+    } finally {
+      deferredPrompt = null;
+    }
+  });
+}
+
+if (btnCloseModal) {
+  btnCloseModal.addEventListener('click', () => {
+    if (installModal) installModal.style.display = 'none';
+  });
+}
+
+// PWA Install Prompt Capture
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  if (installContainer) installContainer.style.display = 'block';
+  if (globalBanner && !localStorage.getItem('pwa_banner_dismissed')) {
+    globalBanner.style.display = 'flex';
+  }
+});
+
+// Show global banner logic
+window.checkAndShowGlobalBanner = function(forceShow = false) {
+  if (!isInStandaloneMode()) {
+    if (forceShow) {
+      localStorage.removeItem('pwa_banner_dismissed');
+    }
+    if (!localStorage.getItem('pwa_banner_dismissed')) {
+      const banner = document.getElementById('pwa-global-banner');
+      if (banner) banner.style.display = 'flex';
+    }
+  }
+};
+
+// Initial check on load
+window.checkAndShowGlobalBanner();
+
 window.addEventListener('appinstalled', () => {
-  // Clear the deferredPrompt so it can be garbage collected
   deferredPrompt = null;
-  // Hide the install UI
   if (installContainer) installContainer.style.display = 'none';
   if (globalBanner) globalBanner.style.display = 'none';
+  if (installModal) installModal.style.display = 'none';
   console.log('[PWA] App was installed successfully');
 });
 

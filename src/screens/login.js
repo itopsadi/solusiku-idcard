@@ -6,6 +6,11 @@ export function renderLogin(container) {
   // Ensure the app knows we are logged out (hides sidebar)
   document.body.classList.add('logged-out');
 
+  // Force banner to show on login page (resets the dismissed state)
+  if (typeof window.checkAndShowGlobalBanner === 'function') {
+    window.checkAndShowGlobalBanner(true);
+  }
+
   let savedUsernames = [];
   try {
     savedUsernames = JSON.parse(localStorage.getItem('solusiku_saved_usernames') || '[]');
@@ -55,63 +60,13 @@ export function renderLogin(container) {
           </button>
         </form>
 
-        <div style="font-size: 0.85rem; margin-top: 24px; text-align: center;">
-          <button id="btn-tips-tools" type="button" style="background: none; border: none; color: var(--accent); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            Panduan Install App Di PWA Mobile
-          </button>
-        </div>
-
         <div style="font-size: 0.65rem; color: var(--text-muted); opacity: 0.6; text-align: center; margin-top: 24px;">
           Powered By IT Operations ADI - HG
         </div>
       </div>
     </div>
 
-    <!-- Modal Tips & Tools -->
-    <div id="tips-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
-      <div class="card animate-in" style="width: 100%; max-width: 500px; padding: 24px; max-height: 90vh; overflow-y: auto;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-          <h2 style="font-size: 1.25rem; font-weight: 700;">Panduan Install Aplikasi PWA</h2>
-          <button id="btn-close-tips" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-        
-        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;">
-          <p style="margin-bottom: 16px;">Karena server ini menggunakan HTTPS dengan sertifikat manual (Self-Signed), fitur <b>Install Web App (PWA)</b> mungkin tidak otomatis muncul. Ikuti langkah berikut agar aplikasi bisa diinstall di layar utama HP Anda:</p>
-          
-          <div style="background: var(--surface-light); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-            <h4 style="color: var(--text-primary); margin-bottom: 8px; font-size: 0.95rem;">Langkah 1: Download Sertifikat (SSL/CA)</h4>
-            <a href="/idcard.cb2.07.solusiku.crt" download class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; text-decoration: none;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              Download File Certificate (.crt)
-            </a>
-          </div>
-
-          <div style="margin-bottom: 16px;">
-            <h4 style="color: var(--text-primary); margin-bottom: 4px; font-size: 0.95rem;">Langkah 2: Install Sertifikat</h4>
-            <p style="margin-bottom: 4px;"><b>Untuk Android:</b></p>
-            <ul style="margin-left: 20px; margin-bottom: 8px;">
-              <li>Buka file <code>.crt</code> yang didownload atau buka Pengaturan HP.</li>
-              <li>Cari menu <b>Keamanan / Security</b> > <b>Install from Storage / Kredensial</b>.</li>
-              <li>Pilih sertifikat yang didownload, beri nama "Solusiku IT", lalu simpan.</li>
-            </ul>
-            <p style="margin-bottom: 4px;"><b>Untuk iOS (iPhone):</b></p>
-            <ul style="margin-left: 20px;">
-              <li>Buka file <code>.crt</code>, sistem akan meminta Anda menginstall "Profile".</li>
-              <li>Buka Settings > Profile Downloaded > Install.</li>
-              <li>Buka Settings > General > About > Certificate Trust Settings, aktifkan centang untuk sertifikat ini.</li>
-            </ul>
-          </div>
-
-          <div style="background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 8px; border-left: 4px solid #10b981;">
-            <h4 style="color: var(--text-primary); margin-bottom: 4px; font-size: 0.95rem;">Langkah 3: Tambahkan ke Layar Utama</h4>
-            <p>Setelah sertifikat diinstall, tutup tab ini dan buka kembali aplikasi. Anda akan melihat tombol <b>"Install App"</b> atau Anda dapat menekan menu browser (titik tiga) lalu pilih <b>"Tambahkan ke Layar Utama" (Add to Home Screen)</b>.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Modal Panduan dihilangkan, sekarang menggunakan pwa-install-modal global -->
   `;
 
   // Focus styles
@@ -127,22 +82,14 @@ export function renderLogin(container) {
   const passwordInput = container.querySelector('#login-password');
 
   const btnTips = container.querySelector('#btn-tips-tools');
-  const tipsModal = container.querySelector('#tips-modal-backdrop');
-  const btnCloseTips = container.querySelector('#btn-close-tips');
 
-  btnTips.addEventListener('click', () => {
-    tipsModal.style.display = 'flex';
-  });
-
-  btnCloseTips.addEventListener('click', () => {
-    tipsModal.style.display = 'none';
-  });
-
-  tipsModal.addEventListener('click', (e) => {
-    if (e.target === tipsModal) {
-      tipsModal.style.display = 'none';
-    }
-  });
+  if (btnTips) {
+    btnTips.addEventListener('click', () => {
+      if (window.showPwaInstallModal) {
+        window.showPwaInstallModal();
+      }
+    });
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
