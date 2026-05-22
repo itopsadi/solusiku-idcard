@@ -167,7 +167,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260522-v9';
+  const CURRENT_DEPLOYMENT_KEY = '20260522-v10';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -286,10 +286,10 @@ const isInStandaloneMode = () => {
 };
 
 // Function to Show Custom Modal
-window.showPwaInstallModal = function() {
+window.showPwaInstallModal = function () {
   if (installModal) {
     installModal.style.display = 'flex';
-    
+
     // Reset Step 2
     if (step2Pwa) {
       step2Pwa.style.opacity = '0.5';
@@ -298,7 +298,7 @@ window.showPwaInstallModal = function() {
     if (step2Badge) {
       step2Badge.style.background = '#94a3b8';
     }
-    
+
     // Platform specifics
     if (isIos()) {
       if (instructionIos) instructionIos.style.display = 'block';
@@ -309,13 +309,13 @@ window.showPwaInstallModal = function() {
       if (instructionIos) instructionIos.style.display = 'none';
       if (instructionAndroid) instructionAndroid.style.display = 'block';
       if (iosCertHint) iosCertHint.style.display = 'none';
-      
+
       if (deferredPrompt) {
-         if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'flex';
-         if (instructionAndroid) instructionAndroid.innerHTML = "Klik tombol di bawah ini untuk menginstal aplikasi.";
+        if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'flex';
+        if (instructionAndroid) instructionAndroid.innerHTML = "Klik tombol di bawah ini untuk menginstal aplikasi.";
       } else {
-         if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'none';
-         if (instructionAndroid) instructionAndroid.innerHTML = "Browser Anda tidak mendukung instalasi otomatis, silahkan pilih <b>'Install App'</b> / <b>'Add to Home Screen'</b> dari menu browser (titik tiga).";
+        if (btnModalInstallPwa) btnModalInstallPwa.style.display = 'none';
+        if (instructionAndroid) instructionAndroid.innerHTML = "Browser Anda tidak mendukung instalasi otomatis, silahkan pilih <b>'Install App'</b> / <b>'Add to Home Screen'</b> dari menu browser (titik tiga).";
       }
     }
   }
@@ -374,7 +374,7 @@ if (btnModalInstallPwa) {
         if (installModal) installModal.style.display = 'none';
         if (globalBanner) globalBanner.style.display = 'none';
       }
-    } catch(e) {
+    } catch (e) {
       console.error(e);
       alert("Instalasi gagal: " + e.message);
     } finally {
@@ -401,7 +401,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // Show global banner logic
-window.checkAndShowGlobalBanner = function(forceShow = false) {
+window.checkAndShowGlobalBanner = function (forceShow = false) {
   if (!isInStandaloneMode()) {
     if (forceShow) {
       localStorage.removeItem('pwa_banner_dismissed');
