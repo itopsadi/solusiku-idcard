@@ -148,21 +148,43 @@ export async function renderSettings(container) {
 
     if (Notification.permission === 'granted') {
       playTestSound();
-      new Notification('IT OPS Solusiku', {
-        body: 'Notifikasi browser berjalan dengan baik!',
-        icon: '/pwa-icon-512.png'
-      });
-      showToast('Notifikasi browser telah dikirim.', 'success');
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification('IT OPS Solusiku', {
+            body: 'Notifikasi PWA berjalan dengan baik!',
+            icon: '/pwa-icon-512.png',
+            badge: '/favicon.svg',
+            vibrate: [200, 100, 200]
+          });
+        });
+      } else {
+        new Notification('IT OPS Solusiku', {
+          body: 'Notifikasi browser berjalan dengan baik!',
+          icon: '/pwa-icon-512.png'
+        });
+      }
+      showToast('Notifikasi telah dikirim.', 'success');
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then(permission => {
         updateNotifStatus();
         if (permission === 'granted') {
           playTestSound();
-          new Notification('IT OPS Solusiku', {
-            body: 'Notifikasi browser berhasil diizinkan (Always Allow)!',
-            icon: '/pwa-icon-512.png'
-          });
-          showToast('Notifikasi browser diizinkan.', 'success');
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification('IT OPS Solusiku', {
+                body: 'Notifikasi PWA berhasil diizinkan (Always Allow)!',
+                icon: '/pwa-icon-512.png',
+                badge: '/favicon.svg',
+                vibrate: [200, 100, 200]
+              });
+            });
+          } else {
+            new Notification('IT OPS Solusiku', {
+              body: 'Notifikasi browser berhasil diizinkan (Always Allow)!',
+              icon: '/pwa-icon-512.png'
+            });
+          }
+          showToast('Notifikasi diizinkan.', 'success');
         } else {
           showToast('Izin notifikasi ditolak oleh pengguna.', 'warning');
         }

@@ -409,20 +409,43 @@ async function checkNotifications() {
       // Toast notification (in-app)
       showToast(msg, 'info');
 
-      // Browser notification (system-level)
+      // Browser/PWA notification (system-level)
       if (Notification.permission === 'granted') {
-        new Notification('IT OPS Solusiku', {
-          body: msg,
-          icon: '/pwa-icon-512.png'
-        });
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification('IT OPS Solusiku', {
+              body: msg,
+              icon: '/pwa-icon-512.png',
+              badge: '/favicon.svg',
+              vibrate: [200, 100, 200]
+            });
+          });
+        } else {
+          new Notification('IT OPS Solusiku', {
+            body: msg,
+            icon: '/pwa-icon-512.png'
+          });
+        }
       }
     } else if (lastPendingCount === -1 && currentPending > 0) {
       // First load with pending items
       if (Notification.permission === 'granted') {
-        new Notification('IT OPS Solusiku', {
-          body: `Ada ${currentPending} data yang menunggu untuk diproses.`,
-          icon: '/pwa-icon-512.png'
-        });
+        const msg = `Ada ${currentPending} data yang menunggu untuk diproses.`;
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification('IT OPS Solusiku', {
+              body: msg,
+              icon: '/pwa-icon-512.png',
+              badge: '/favicon.svg',
+              vibrate: [200, 100, 200]
+            });
+          });
+        } else {
+          new Notification('IT OPS Solusiku', {
+            body: msg,
+            icon: '/pwa-icon-512.png'
+          });
+        }
       }
     }
     lastPendingCount = currentPending;

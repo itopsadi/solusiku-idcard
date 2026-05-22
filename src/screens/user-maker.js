@@ -632,8 +632,13 @@ export function renderUserMaker(container) {
       }
 
     } catch (err) {
-      content.innerHTML = `<div class="empty-state" style="color:var(--rose);">Error loading data: ${err.message}</div>`;
+      if (document.getElementById('user-maker-content')) {
+        content.innerHTML = `<div class="empty-state" style="color:var(--rose);">Error loading data: ${err.message}</div>`;
+      }
     }
+
+    // Mencegah error jika user pindah menu saat data masih loading
+    if (!document.getElementById('um-modals-wrapper')) return;
 
     // Dynamic Form Validation Logic
     function validateForm() {

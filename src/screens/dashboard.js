@@ -18,6 +18,10 @@ export async function renderDashboard(container) {
       <div>
         <h1>Dashboard</h1>
         <p>IT Operations Control Center — ID Card Automation</p>
+        <p style="font-size: 0.75rem; color: var(--accent); margin-top: 4px; font-weight: 500;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px; display: inline; vertical-align: -2px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Menampilkan data 1 bulan terakhir
+        </p>
       </div>
     </div>
 
@@ -98,7 +102,15 @@ export async function renderDashboard(container) {
 }
 
 function renderRows(employees) {
-  if (!employees.length) return '';
+  if (!employees.length) return `
+    <tr>
+      <td colspan="6" style="text-align:center; padding: 3rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2.5rem; margin-bottom: 12px;">🏝️</div>
+        <div style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary);">Belum ada data baru</div>
+        <div style="font-size: 0.85rem; max-width: 300px; margin: 4px auto 0;">Semua permintaan ID Card dalam 1 bulan terakhir telah diproses atau belum ada permintaan baru dari GLPI.</div>
+      </td>
+    </tr>
+  `;
   return employees.map(emp => `
     <tr data-id="${emp.id}" data-status="${emp.status}" class="emp-row">
       <td data-label="Nama">

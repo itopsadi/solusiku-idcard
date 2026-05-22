@@ -431,7 +431,8 @@ export async function fetchGLPITickets() {
     const activeSession = adminSession || session;
     console.log('[GLPI] fetchGLPITickets using session:', adminSession ? 'ADMIN BYPASS (Synchronized)' : 'USER SESSION');
 
-    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-100&expand_dropdowns=true&sort=id&order=DESC`, {
+    // Ambil 300 tiket terakhir untuk memastikan data 1 bulan tercover
+    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-300&expand_dropdowns=true&sort=id&order=DESC`, {
       headers: {
         'App-Token': GLPI_APP_TOKEN,
         'Session-Token': activeSession
@@ -444,9 +445,16 @@ export async function fetchGLPITickets() {
     const localData = loadData();
 
     // Filter tiket onboarding (Device Request) yang berstatus Assigned (2), Solved (5), atau Closed (6)
+    // DAN batasi hanya untuk 30 hari (1 bulan) terakhir
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const onboardingTickets = tickets.filter(t => {
       const title = t.name || '';
-      return title.toLowerCase().includes('device request') && [2, 5, 6].includes(t.status);
+      const ticketDate = new Date(t.date || t.date_creation);
+      return title.toLowerCase().includes('device request') && 
+             [2, 5, 6].includes(t.status) &&
+             ticketDate >= thirtyDaysAgo;
     });
 
     const glpiEmployees = onboardingTickets.map(t => {
