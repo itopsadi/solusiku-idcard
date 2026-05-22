@@ -158,10 +158,14 @@ export async function renderSettings(container) {
           });
         });
       } else {
-        new Notification('IT OPS Solusiku', {
+        const notif = new Notification('IT OPS Solusiku', {
           body: 'Notifikasi browser berjalan dengan baik!',
           icon: '/pwa-icon-512.png'
         });
+        notif.onclick = function() {
+          window.focus();
+          this.close();
+        };
       }
       showToast('Notifikasi telah dikirim.', 'success');
     } else if (Notification.permission !== 'denied') {
@@ -179,10 +183,14 @@ export async function renderSettings(container) {
               });
             });
           } else {
-            new Notification('IT OPS Solusiku', {
+            const notif = new Notification('IT OPS Solusiku', {
               body: 'Notifikasi browser berhasil diizinkan (Always Allow)!',
               icon: '/pwa-icon-512.png'
             });
+            notif.onclick = function() {
+              window.focus();
+              this.close();
+            };
           }
           showToast('Notifikasi diizinkan.', 'success');
         } else {

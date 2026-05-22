@@ -421,10 +421,14 @@ async function checkNotifications() {
             });
           });
         } else {
-          new Notification('IT OPS Solusiku', {
+          const notif = new Notification('IT OPS Solusiku', {
             body: msg,
             icon: '/pwa-icon-512.png'
           });
+          notif.onclick = function() {
+            window.focus();
+            this.close();
+          };
         }
       }
     } else if (lastPendingCount === -1 && currentPending > 0) {
@@ -441,10 +445,14 @@ async function checkNotifications() {
             });
           });
         } else {
-          new Notification('IT OPS Solusiku', {
+          const notif = new Notification('IT OPS Solusiku', {
             body: msg,
             icon: '/pwa-icon-512.png'
           });
+          notif.onclick = function() {
+            window.focus();
+            this.close();
+          };
         }
       }
     }
