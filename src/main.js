@@ -171,7 +171,7 @@ window.addEventListener('hashchange', () => {
 async function initApp() {
   // --- FORCED LOGOUT ON NEW DEPLOYMENT ---
   // Cukup ubah nilai kunci ini (misalnya naikkan versi atau tanggal) untuk memaksa semua user ter-logout otomatis saat deployment baru aktif.
-  const CURRENT_DEPLOYMENT_KEY = '20260522-v10';
+  const CURRENT_DEPLOYMENT_KEY = '20260525-v02';
   const savedKey = localStorage.getItem('solusiku_deployment_key');
 
   if (savedKey !== CURRENT_DEPLOYMENT_KEY) {
@@ -398,7 +398,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredPrompt = e;
 
   if (installContainer) installContainer.style.display = 'block';
-  
+
   const hash = window.location.hash || '#/';
   if (globalBanner && !localStorage.getItem('pwa_banner_dismissed') && hash === '#/login') {
     globalBanner.style.display = 'flex';
@@ -413,7 +413,7 @@ window.checkAndShowGlobalBanner = function (forceShow = false) {
     }
     const hash = window.location.hash || '#/';
     const banner = document.getElementById('pwa-global-banner');
-    
+
     if (!localStorage.getItem('pwa_banner_dismissed') && hash === '#/login') {
       if (banner) banner.style.display = 'flex';
     } else {
