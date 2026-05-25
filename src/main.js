@@ -160,6 +160,10 @@ window.addEventListener('hashchange', () => {
   document.querySelectorAll('.mobile-nav-link').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-route') === route);
   });
+
+  if (window.checkAndShowGlobalBanner) {
+    window.checkAndShowGlobalBanner();
+  }
 });
 
 
@@ -389,13 +393,14 @@ if (btnCloseModal) {
   });
 }
 
-// PWA Install Prompt Capture
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
 
   if (installContainer) installContainer.style.display = 'block';
-  if (globalBanner && !localStorage.getItem('pwa_banner_dismissed')) {
+  
+  const hash = window.location.hash || '#/';
+  if (globalBanner && !localStorage.getItem('pwa_banner_dismissed') && hash === '#/login') {
     globalBanner.style.display = 'flex';
   }
 });
@@ -406,9 +411,13 @@ window.checkAndShowGlobalBanner = function (forceShow = false) {
     if (forceShow) {
       localStorage.removeItem('pwa_banner_dismissed');
     }
-    if (!localStorage.getItem('pwa_banner_dismissed')) {
-      const banner = document.getElementById('pwa-global-banner');
+    const hash = window.location.hash || '#/';
+    const banner = document.getElementById('pwa-global-banner');
+    
+    if (!localStorage.getItem('pwa_banner_dismissed') && hash === '#/login') {
       if (banner) banner.style.display = 'flex';
+    } else {
+      if (banner) banner.style.display = 'none';
     }
   }
 };
