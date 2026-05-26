@@ -2,13 +2,11 @@
 const STORAGE_KEY = 'solusiku_idcard_data';
 
 const IS_DEV = import.meta.env.DEV;
-export let GLPI_API_URL = import.meta.env.VITE_GLPI_API_URL;
 export const REAL_GLPI_URL = new URL(import.meta.env.VITE_GLPI_API_URL).origin;
 
-if (IS_DEV) {
-  // Use Vite proxy in development to bypass mobile DNS/SSL restrictions
-  GLPI_API_URL = '/glpi-proxy';
-}
+// ALWAYS use the proxy route to bypass SSL / CORS issues on mobile browsers.
+// In dev: Vite handles it. In prod: Apache handles it.
+export const GLPI_API_URL = '/glpi-proxy';
 
 const GLPI_APP_TOKEN = import.meta.env.VITE_GLPI_APP_TOKEN;
 
@@ -216,10 +214,7 @@ export async function loginUser(username, password, rememberMe = true) {
         }
       });
     } catch (netErr) {
-      if (netErr.message === 'Failed to fetch' || netErr.name === 'TypeError') {
-        throw new Error(`Koneksi diblokir (Failed to Fetch). Pada browser HP Anda, buka tab baru ke alamat: ${GLPI_API_URL.split('/api.php')[0]} lalu setujui sertifikat SSL (Pilih Advanced -> Proceed/Lanjutkan). Setelah itu kembali ke aplikasi ini dan coba login lagi.`);
-      }
-      throw netErr;
+      throw new Error(`Koneksi ke server gagal. Pastikan jaringan internet Anda stabil.`);
     }
 
     if (!res.ok) {
