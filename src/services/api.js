@@ -206,13 +206,21 @@ export function resetAdminSessionCache() {
 export async function loginUser(username, password, rememberMe = true) {
   try {
     const credentials = btoa(`${username}:${password}`);
-    const res = await fetch(`${GLPI_API_URL}/initSession`, {
-      method: 'GET',
-      headers: {
-        'App-Token': GLPI_APP_TOKEN,
-        'Authorization': `Basic ${credentials}`
+    let res;
+    try {
+      res = await fetch(`${GLPI_API_URL}/initSession`, {
+        method: 'GET',
+        headers: {
+          'App-Token': GLPI_APP_TOKEN,
+          'Authorization': `Basic ${credentials}`
+        }
+      });
+    } catch (netErr) {
+      if (netErr.message === 'Failed to fetch' || netErr.name === 'TypeError') {
+        throw new Error(`Koneksi diblokir (Failed to Fetch). Pada browser HP Anda, buka tab baru ke alamat: ${GLPI_API_URL.split('/api.php')[0]} lalu setujui sertifikat SSL (Pilih Advanced -> Proceed/Lanjutkan). Setelah itu kembali ke aplikasi ini dan coba login lagi.`);
       }
-    });
+      throw netErr;
+    }
 
     if (!res.ok) {
       const errorText = await res.text();
