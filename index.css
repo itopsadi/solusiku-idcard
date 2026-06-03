@@ -361,6 +361,37 @@ body {
 }
 .btn-danger:hover { background: rgba(225, 29, 72, 0.05); }
 
+.btn-reclean {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+.btn-reclean:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+}
+.btn-reclean:active { transform: translateY(0); }
+.btn-reclean:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn-reclean::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+.btn-reclean:hover::after {
+  transform: translateX(100%);
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
@@ -697,6 +728,7 @@ body {
   display: flex;
   gap: 16px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* ===== LOADING ===== */

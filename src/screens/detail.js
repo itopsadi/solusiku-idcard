@@ -270,7 +270,7 @@ export async function renderDetail(container, empId) {
 
   container.querySelector('#btn-crop-confirm').addEventListener('click', async () => {
     if (!cropperInstance) return;
-    const canvas = cropperInstance.getCroppedCanvas({ width: 600, height: 800, imageSmoothingQuality: 'high' });
+    const canvas = cropperInstance.getCroppedCanvas({ width: 900, height: 1200, imageSmoothingQuality: 'high' });
     const croppedURL = canvas.toDataURL('image/png', 1.0);
 
     closeCropper();

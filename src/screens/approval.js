@@ -1,10 +1,11 @@
-import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmployee, fetchIDCardBlobURL } from '../services/api.js';
+import { getEmployee, approveEmployee, resetEmployee, uploadToGLPI, updateEmployee, fetchIDCardBlobURL, saveProcessedPhoto } from '../services/api.js';
 import { exportToImage, downloadFile } from '../services/export.js';
 import { triggerWebhook } from '../services/webhook.js';
 import { renderIDCard, getLogo } from '../templates/idcard.js';
 import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import { formatDate, getTicketUrl } from '../utils/helpers.js';
+import { reCleanBackground } from '../services/background-removal.js';
 
 export async function renderApproval(container, empId) {
   const emp = await getEmployee(empId);
@@ -78,12 +79,27 @@ export async function renderApproval(container, empId) {
         </div>
       </div>
 
+      <!-- Re-clean BG Processing Overlay -->
+      <div id="reclean-processing" style="display:none;width:100%;max-width:500px;">
+        <div class="card" style="text-align:center;padding:24px;">
+          <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>
+          <div id="reclean-text" style="font-weight:600;color:var(--text-main);margin-bottom:12px;">Re-cleaning background...</div>
+          <div class="progress-bar" style="height:6px;border-radius:99px;background:var(--border);overflow:hidden;">
+            <div id="reclean-progress" style="width:0%;height:100%;background:var(--gradient-1);border-radius:99px;transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Actions -->
       <div class="approval-actions">
         ${!isApproved ? `
         <button class="btn btn-danger btn-lg" id="btn-reject">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="m15 9-6 6"/></svg>
           Retake Foto
+        </button>
+        <button class="btn btn-reclean btn-lg" id="btn-reclean" ${!emp.processedPhoto ? 'disabled title="Belum ada foto yang diproses"' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Re-clean BG
         </button>
         <button class="btn btn-success btn-lg" id="btn-approve">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg>
@@ -299,6 +315,84 @@ export async function renderApproval(container, empId) {
       showToast('Foto direset. Silakan ambil ulang.', 'warning');
       navigate('/detail/' + empId);
     });
+
+    // ── RE-CLEAN BG BUTTON ──────────────────────────────────────
+    var recleanBtn = container.querySelector('#btn-reclean');
+    if (recleanBtn) {
+      recleanBtn.addEventListener('click', async function() {
+        if (!emp.processedPhoto) {
+          showToast('Tidak ada foto yang bisa di-reclean.', 'warning');
+          return;
+        }
+
+        // Disable all action buttons during processing
+        var actionBtns = container.querySelectorAll('.approval-actions button');
+        actionBtns.forEach(function(b) { b.disabled = true; });
+
+        // Show processing overlay
+        var overlay = container.querySelector('#reclean-processing');
+        var progressBar = container.querySelector('#reclean-progress');
+        var recleanText = container.querySelector('#reclean-text');
+        if (overlay) overlay.style.display = 'block';
+
+        recleanBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px"></div> Processing...';
+
+        try {
+          var cleanedURL = await reCleanBackground(emp.processedPhoto, function(p) {
+            if (progressBar) progressBar.style.width = p + '%';
+            if (recleanText) {
+              if (p < 20) recleanText.textContent = 'Menganalisis foto...';
+              else if (p < 60) recleanText.textContent = 'Membersihkan sisa background...';
+              else if (p < 90) recleanText.textContent = 'Finishing touches...';
+              else recleanText.textContent = 'Hampir selesai!';
+            }
+          });
+
+          // Save the cleaned result
+          await saveProcessedPhoto(empId, cleanedURL);
+
+          // Update local emp reference
+          emp.processedPhoto = cleanedURL;
+
+          // Rebuild the ID card preview with new processed photo
+          var idcardEl = container.querySelector('#idcard-render');
+          if (idcardEl) {
+            idcardEl.innerHTML = '';
+            var newPhotoToUse = cleanedURL;
+            cardEl = renderIDCard({
+              name: emp.name,
+              jabatan: emp.jabatan,
+              nik: emp.nik,
+              photo: newPhotoToUse,
+              panX: emp.panX || 0,
+              panY: emp.panY || 0,
+            });
+            cardEl.dataset.name = emp.name;
+            cardEl.dataset.jabatan = emp.jabatan;
+            cardEl.dataset.nik = emp.nik;
+            cardEl.dataset.photo = newPhotoToUse || '';
+            cardEl.dataset.logo = getLogo() || '';
+            cardEl.dataset.panX = emp.panX || 0;
+            cardEl.dataset.panY = emp.panY || 0;
+            idcardEl.appendChild(cardEl);
+          }
+
+          // Update processed photo in comparison view
+          var processedImgs = container.querySelectorAll('#photo-comparison img[alt="Processed"]');
+          processedImgs.forEach(function(img) { img.src = cleanedURL; });
+
+          showToast('Background berhasil dibersihkan ulang! ✨', 'success');
+        } catch (err) {
+          console.error('[Re-clean] Failed:', err);
+          showToast('Gagal re-clean: ' + err.message, 'error');
+        }
+
+        // Hide processing overlay & restore buttons
+        if (overlay) overlay.style.display = 'none';
+        actionBtns.forEach(function(b) { b.disabled = false; });
+        recleanBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-clean BG';
+      });
+    }
   }
 
   // ──────────────────────────────────────────────────────────────
