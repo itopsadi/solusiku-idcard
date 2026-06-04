@@ -42,14 +42,12 @@ function getNameStyle(name) {
     };
   }
 
-  // ── Longer names: allow 2 lines with word-wrap ──
+  // ── Longer names: allow 2 lines with word-wrap — compact font to avoid pushing job title ──
   let fontSize;
-  if (len <= 25) fontSize = '1.85rem';
-  else if (len <= 32) {
-    fontSize = words <= 4 ? '1.75rem' : '1.6rem';
-  }
-  else if (len <= 42) fontSize = '1.45rem';
-  else fontSize = '1.25rem';
+  if (len <= 25) fontSize = '1.5rem';
+  else if (len <= 32) fontSize = '1.35rem';
+  else if (len <= 42) fontSize = '1.2rem';
+  else fontSize = '1.1rem';
 
   return {
     fontSize,

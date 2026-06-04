@@ -187,12 +187,12 @@ export async function exportToImage(element, dpi = 300) {
         return { fontPx, singleLine: true };
       }
 
-      // Multi-line (max 2 lines)
+      // Multi-line (max 2 lines) — compact to avoid pushing job title
       let fontPx;
-      if (len <= 25) fontPx = 30;         // 1.85rem
-      else if (len <= 32) fontPx = words <= 4 ? 28 : 26; // 1.75/1.6rem
-      else if (len <= 42) fontPx = 23;    // 1.45rem
-      else fontPx = 20;                   // 1.25rem
+      if (len <= 25) fontPx = 24;         // 1.5rem
+      else if (len <= 32) fontPx = 22;    // 1.35rem
+      else if (len <= 42) fontPx = 19;    // 1.2rem
+      else fontPx = 18;                   // 1.1rem
       return { fontPx, singleLine: false };
     }
 
