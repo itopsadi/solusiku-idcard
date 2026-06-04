@@ -31,10 +31,10 @@ function getNameStyle(name) {
   if (len <= 20) {
     // ── Short names: fit on 1 line ──
     let fontSize;
-    if (len <= 10) fontSize = '2.4rem';
-    else if (len <= 14) fontSize = '2.1rem';
-    else if (len <= 17) fontSize = '1.9rem';
-    else fontSize = '1.75rem';
+    if (len <= 10) fontSize = '2.2rem';
+    else if (len <= 13) fontSize = '1.9rem';
+    else if (len <= 16) fontSize = '1.7rem';
+    else fontSize = '1.5rem'; // 17-20 chars — must fit ~272px width
 
     return {
       fontSize,

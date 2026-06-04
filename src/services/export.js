@@ -172,13 +172,28 @@ export async function exportToImage(element, dpi = 300) {
     // Matches idcard.js getNameFontSize/getJobFontSize + CSS line-clamp: 2
     // ============================================================
 
-    // --- Dynamic font size (same logic as idcard.js) ---
-    function getNameFontPx(name) {
-      const len = (name || '').length;
-      if (len <= 12) return 32;   // 2.0rem  ≈ 32px
-      if (len <= 20) return 28;   // 1.75rem ≈ 28px
-      if (len <= 30) return 23;   // 1.45rem ≈ 23px
-      return 20;                  // 1.25rem ≈ 20px
+    // --- Dynamic font size + single-line logic (synced with idcard.js getNameStyle) ---
+    function getNameConfig(name) {
+      const len = (name || '').trim().length;
+      const words = (name || '').trim().split(/\s+/).length;
+
+      if (len <= 20) {
+        // Single line — synced with idcard.js
+        let fontPx;
+        if (len <= 10) fontPx = 35;       // 2.2rem
+        else if (len <= 13) fontPx = 30;  // 1.9rem
+        else if (len <= 16) fontPx = 27;  // 1.7rem
+        else fontPx = 24;                 // 1.5rem
+        return { fontPx, singleLine: true };
+      }
+
+      // Multi-line (max 2 lines)
+      let fontPx;
+      if (len <= 25) fontPx = 30;         // 1.85rem
+      else if (len <= 32) fontPx = words <= 4 ? 28 : 26; // 1.75/1.6rem
+      else if (len <= 42) fontPx = 23;    // 1.45rem
+      else fontPx = 20;                   // 1.25rem
+      return { fontPx, singleLine: false };
     }
 
     function getJobFontPx(job) {
@@ -188,7 +203,7 @@ export async function exportToImage(element, dpi = 300) {
       return 15;                  // 0.95rem ≈ 15px
     }
 
-    // --- Word wrap helper (max 2 lines, matches CSS line-clamp: 2) ---
+    // --- Word wrap helper (max N lines, breaks at word boundaries) ---
     function wrapText(ctx, text, maxWidth, maxLines) {
       const words = text.split(/\s+/);
       const lines = [];
@@ -216,16 +231,25 @@ export async function exportToImage(element, dpi = 300) {
     const INFO_TOP    = 133 + 230 + 16; // wrapper bottom + margin-top(16)
 
     // Name
-    const nameFontPx = getNameFontPx(data.name);
+    const nameConfig = getNameConfig(data.name);
+    const nameFontPx = nameConfig.fontPx;
     const nameLH     = nameFontPx * 1.1; // CSS line-height: 1.1
     ctx.fillStyle = '#111111';
     ctx.textAlign = 'left';
     ctx.font = `800 ${s(nameFontPx)}px Poppins, sans-serif`;
-    const nameLines = wrapText(ctx, data.name, s(TEXT_MAX_W), 2);
+
     let nameY = s(INFO_TOP) + s(nameFontPx); // baseline of first line
-    for (const line of nameLines) {
-      ctx.fillText(line, s(TEXT_LEFT), nameY);
+    if (nameConfig.singleLine) {
+      // ≤ 20 chars: draw on single line, no wrapping
+      ctx.fillText(data.name, s(TEXT_LEFT), nameY);
       nameY += s(nameLH);
+    } else {
+      // > 20 chars: word-wrap to max 2 lines
+      const nameLines = wrapText(ctx, data.name, s(TEXT_MAX_W), 2);
+      for (const line of nameLines) {
+        ctx.fillText(line, s(TEXT_LEFT), nameY);
+        nameY += s(nameLH);
+      }
     }
 
     // Jabatan (starts after name + 3px margin-bottom)
