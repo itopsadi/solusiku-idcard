@@ -192,7 +192,7 @@
   z-index: 11;
 }
 
-/* Name — size is set dynamically via inline style based on length */
+/* Name — size and line behavior set dynamically via inline style */
 .idcard-name {
   font-family: 'Poppins', sans-serif;
   font-weight: 800;
@@ -202,9 +202,8 @@
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  word-break: break-word;
-  /* Prevent text overflow on the right side */
+  -webkit-line-clamp: 2; /* safety max for multi-line */
+  /* word-break and white-space are controlled via inline style */
   max-width: 100%;
 }
 

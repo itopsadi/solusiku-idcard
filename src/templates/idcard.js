@@ -19,34 +19,42 @@ export function getLogo() {
 }
 
 /**
- * Dynamic font size for name.
- * Logic: if name wraps to 2 lines, font can be LARGER (more vertical space).
- * Word count helps determine wrapping: fewer words → bigger font.
+ * Dynamic font size and line config for name.
+ * Rules:
+ *  - ≤ 20 chars (incl. spaces): force 1 line (nowrap), bigger font
+ *  - > 20 chars: allow 2 lines, break at word boundaries, adjusted font
  */
-function getNameFontSize(name) {
+function getNameStyle(name) {
   const len = (name || '').trim().length;
   const words = (name || '').trim().split(/\s+/).length;
 
-  // Very short names — big & bold, fits 1 line
-  if (len <= 10) return '2.4rem';
+  if (len <= 20) {
+    // ── Short names: fit on 1 line ──
+    let fontSize;
+    if (len <= 10) fontSize = '2.4rem';
+    else if (len <= 14) fontSize = '2.1rem';
+    else if (len <= 17) fontSize = '1.9rem';
+    else fontSize = '1.75rem';
 
-  // Short names, 1–2 words
-  if (len <= 16) return '2.1rem';
-
-  // Medium names — likely 2 lines, can still be large
-  if (len <= 22) return '1.9rem';
-
-  // 3–5 word names wrapping to 2 lines — this is the sweet spot
-  // Give them a larger font because 2 lines have plenty of room
-  if (len <= 32) {
-    // If 3–4 words, each line has fewer chars → can be bigger
-    if (words <= 4) return '1.75rem';
-    return '1.6rem';
+    return {
+      fontSize,
+      singleLine: true, // force 1 line
+    };
   }
 
-  // Very long names
-  if (len <= 42) return '1.45rem';
-  return '1.25rem'; // extremely long, keep readable
+  // ── Longer names: allow 2 lines with word-wrap ──
+  let fontSize;
+  if (len <= 25) fontSize = '1.85rem';
+  else if (len <= 32) {
+    fontSize = words <= 4 ? '1.75rem' : '1.6rem';
+  }
+  else if (len <= 42) fontSize = '1.45rem';
+  else fontSize = '1.25rem';
+
+  return {
+    fontSize,
+    singleLine: false, // allow 2-line wrap
+  };
 }
 
 function getJobFontSize(job) {
@@ -89,8 +97,11 @@ export function renderIDCard(data) {
   const jabatan  = data.jabatan || 'Jabatan';
   const nik      = data.nik     || 'ADI-0000-000';
 
-  // Dynamic name font size
-  const nameFontSize = getNameFontSize(name);
+  // Dynamic name style (font size + single/multi-line)
+  const nameStyle = getNameStyle(name);
+  const nameInlineStyle = nameStyle.singleLine
+    ? `font-size:${nameStyle.fontSize};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`
+    : `font-size:${nameStyle.fontSize};word-break:normal;overflow-wrap:break-word;`;
 
   const panX = data.panX || 0;
   const panY = data.panY || 0;
@@ -137,7 +148,7 @@ export function renderIDCard(data) {
 
     // Name (dynamic size) + Job title (dynamic size)
     '  <div class="idcard-info">',
-    '    <div class="idcard-name" style="font-size:' + nameFontSize + '">' + name + '</div>',
+    '    <div class="idcard-name" style="' + nameInlineStyle + '">' + name + '</div>',
     '    <div class="idcard-jabatan" style="font-size:' + getJobFontSize(jabatan) + '">' + jabatan + '</div>',
     '  </div>',
 
