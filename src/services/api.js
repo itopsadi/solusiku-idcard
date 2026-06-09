@@ -744,11 +744,21 @@ export async function resetAllData() {
 }
 
 export async function uploadToGLPI(ticketId, blob) {
-  if (!GLPI_API_URL || GLPI_API_URL.includes('localhost') || !glpiSessionToken) {
-    console.warn('GLPI not configured or no session, skipping upload.');
+  if (!GLPI_API_URL || GLPI_API_URL.includes('localhost')) {
+    console.warn('[GLPI Upload] GLPI not configured, skipping upload.');
     return false;
   }
-  try {
+
+  // Use admin session (full permissions) with fallback to user session
+  let adminSession = await getAdminSessionToken();
+  let session = adminSession || glpiSessionToken || await getSession();
+
+  if (!session) {
+    console.warn('[GLPI Upload] No session available, skipping upload.');
+    return false;
+  }
+
+  async function doUpload(activeSession) {
     const formData = new FormData();
     const manifest = {
       input: {
@@ -760,53 +770,87 @@ export async function uploadToGLPI(ticketId, blob) {
     formData.append('filename[0]', blob, `idcard_${ticketId}.png`);
 
     // 1. Upload Document
+    console.log('[GLPI Upload] Uploading document for ticket', ticketId, '...');
     const docRes = await fetch(`${GLPI_API_URL}/Document`, {
       method: 'POST',
       headers: {
         'App-Token': GLPI_APP_TOKEN,
-        'Session-Token': glpiSessionToken
+        'Session-Token': activeSession
       },
       body: formData
     });
 
     if (!docRes.ok) {
       const errText = await docRes.text();
-      throw new Error(`Upload dokumen ke GLPI gagal (${docRes.status}): ${errText}`);
+      throw new Error(`Upload dokumen gagal (${docRes.status}): ${errText}`);
     }
     const docData = await docRes.json();
     const docId = docData.id;
+    console.log('[GLPI Upload] Document created, ID:', docId);
 
     const ticketNum = ticketId.replace('GLPI-', '');
 
     // 2. Link Document to Ticket
-    await fetch(`${GLPI_API_URL}/Document_Item`, {
+    console.log('[GLPI Upload] Linking document to ticket', ticketNum, '...');
+    const linkRes = await fetch(`${GLPI_API_URL}/Document_Item`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'App-Token': GLPI_APP_TOKEN,
-        'Session-Token': glpiSessionToken
+        'Session-Token': activeSession
       },
       body: JSON.stringify({
         input: { documents_id: docId, items_id: ticketNum, itemtype: 'Ticket' }
       })
     });
+    if (!linkRes.ok) {
+      console.warn('[GLPI Upload] Link document failed:', linkRes.status, await linkRes.text());
+    }
 
     // 3. Mark Ticket as Solved (status 5)
-    await fetch(`${GLPI_API_URL}/Ticket/${ticketNum}`, {
+    console.log('[GLPI Upload] Marking ticket', ticketNum, 'as Solved...');
+    const solveRes = await fetch(`${GLPI_API_URL}/Ticket/${ticketNum}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'App-Token': GLPI_APP_TOKEN,
-        'Session-Token': glpiSessionToken
+        'Session-Token': activeSession
       },
       body: JSON.stringify({
         input: { id: ticketNum, status: 5 }
       })
     });
+    if (!solveRes.ok) {
+      console.warn('[GLPI Upload] Solve ticket failed:', solveRes.status, await solveRes.text());
+    }
 
     return true;
+  }
+
+  try {
+    return await doUpload(session);
   } catch (err) {
-    console.error('[GLPI Writeback Error]', err);
+    console.warn('[GLPI Upload] First attempt failed:', err.message);
+
+    // Auto-recovery: if session expired, clear cache and get fresh admin session
+    if (err.message.includes('400') || err.message.includes('401') || err.message.includes('ERROR_SESSION')) {
+      console.log('[GLPI Upload] Session likely expired, attempting auto-recovery...');
+      resetAdminSessionCache();
+      const freshAdmin = await getAdminSessionToken();
+      const freshSession = freshAdmin || await getSession();
+
+      if (freshSession && freshSession !== session) {
+        try {
+          console.log('[GLPI Upload] Retrying with fresh session...');
+          return await doUpload(freshSession);
+        } catch (retryErr) {
+          console.error('[GLPI Upload] Retry also failed:', retryErr);
+          return false;
+        }
+      }
+    }
+
+    console.error('[GLPI Upload] Upload failed:', err);
     return false;
   }
 }
