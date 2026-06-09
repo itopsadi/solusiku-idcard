@@ -8,9 +8,9 @@ export async function renderFinished(container) {
   let currentSearchQuery = '';
 
   const employees = await getEmployees();
-  // Ambil yang sudah selesai (approved) dan urutkan terbaru di atas
+  // Ambil yang sudah selesai (approved + cancelled) dan urutkan terbaru di atas
   const finishedEmployees = employees
-    .filter(e => e.status === 'approved')
+    .filter(e => e.status === 'approved' || e.status === 'cancelled')
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   container.innerHTML = `

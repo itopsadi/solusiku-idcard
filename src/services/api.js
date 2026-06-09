@@ -487,13 +487,17 @@ export async function fetchGLPITickets() {
       let finalStatus = existing.status || 'waiting_photo';
 
       if (t.status === 5 || t.status === 6) {
-        // Jika di GLPI sudah Solved/Closed, maka di aplikasi WAJIB 'approved'
-        finalStatus = 'approved';
+        // Jika di GLPI sudah Solved/Closed:
+        // - Jika lokal sudah 'cancelled', pertahankan cancelled
+        // - Jika belum, set 'approved'
+        if (finalStatus !== 'cancelled') {
+          finalStatus = 'approved';
+        }
       } else if (t.status === 2) {
-        // Jika di GLPI statusnya 'Assigned' (2), tapi di aplikasi lokal 'approved',
+        // Jika di GLPI statusnya 'Assigned' (2), tapi di aplikasi lokal 'approved' atau 'cancelled',
         // ini berarti tiket dibuka kembali atau di-revert oleh user.
         // Maka kita turunkan kembali statusnya agar bisa diproses ulang.
-        if (finalStatus === 'approved') {
+        if (finalStatus === 'approved' || finalStatus === 'cancelled') {
           finalStatus = 'waiting_photo';
         }
       }
@@ -720,6 +724,12 @@ export function approveEmployee(id) {
   updateEmployee(id, { status: 'approved', approvedAt: new Date().toISOString() });
 }
 
+export async function cancelEmployee(id) {
+  await deletePhotoDB(`${id}_photo`);
+  await deletePhotoDB(`${id}_processed`);
+  updateEmployee(id, { photo: null, processedPhoto: null, status: 'cancelled', cancelledAt: new Date().toISOString() });
+}
+
 export async function resetEmployee(id) {
   await deletePhotoDB(`${id}_photo`);
   await deletePhotoDB(`${id}_processed`);
@@ -733,7 +743,8 @@ export async function getStats() {
   const processing = employees.filter(e => e.status === 'processing').length;
   const ready = employees.filter(e => e.status === 'ready_review').length;
   const approved = employees.filter(e => e.status === 'approved').length;
-  return { total, waiting, processing, ready, approved };
+  const cancelled = employees.filter(e => e.status === 'cancelled').length;
+  return { total, waiting, processing, ready, approved, cancelled };
 }
 
 export async function resetAllData() {

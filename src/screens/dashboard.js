@@ -7,9 +7,9 @@ import { showToast } from '../utils/toast.js';
 export async function renderDashboard(container) {
   const stats = await getStats();
   const allEmployees = await getEmployees();
-  // Filter yang belum selesai dan URUTKAN terbaru di atas
+  // Filter yang belum selesai (exclude approved & cancelled) dan URUTKAN terbaru di atas
   const employees = allEmployees
-    .filter(e => e.status !== 'approved')
+    .filter(e => e.status !== 'approved' && e.status !== 'cancelled')
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const currentLogo = getLogo();
 
@@ -137,7 +137,7 @@ function attachRowListeners(tbody) {
   tbody.querySelectorAll('.emp-row').forEach(row => {
     row.addEventListener('click', () => {
       const status = row.dataset.status;
-      if (status === 'ready_review' || status === 'approved') {
+      if (status === 'ready_review' || status === 'approved' || status === 'cancelled') {
         navigate(`/approval/${row.dataset.id}`);
       } else {
         navigate(`/detail/${row.dataset.id}`);

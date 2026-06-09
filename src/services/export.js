@@ -285,6 +285,146 @@ export async function exportToImage(element, dpi = 300) {
   }
 }
 
+/**
+ * Export a blank ID Card with "CANCEL" watermark.
+ * Same template but no photo, and a large diagonal "CANCEL" stamp.
+ */
+export async function exportCancelledCard(data) {
+  const canvas = document.createElement('canvas');
+  canvas.width = BASE_W * DPI_SCALE;
+  canvas.height = BASE_H * DPI_SCALE;
+  const ctx = canvas.getContext('2d');
+  const s = (val) => val * DPI_SCALE;
+
+  try {
+    const logoImg = await loadImage(data.logo || null);
+
+    // 1. White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Gray bottom-left deco
+    ctx.fillStyle = '#e2e2e2';
+    ctx.fillRect(0, s(BASE_H - 260), s(96), s(260));
+
+    // 3. Gray circle
+    const circleX = s(10 + 115);
+    const circleY = s(133 + 115);
+    const circleR = s(115);
+    ctx.beginPath();
+    ctx.arc(circleX, circleY, circleR, 0, Math.PI * 2);
+    ctx.fillStyle = '#d4d4d4';
+    ctx.fill();
+
+    // 4. Red blob top-right
+    ctx.fillStyle = '#D94035';
+    const blobW = s(70);
+    const blobH = s(160);
+    ctx.beginPath();
+    ctx.moveTo(canvas.width - blobW, 0);
+    ctx.lineTo(canvas.width, 0);
+    ctx.lineTo(canvas.width, blobH);
+    ctx.quadraticCurveTo(canvas.width - blobW, blobH, canvas.width - blobW, blobH - s(70));
+    ctx.closePath();
+    ctx.fill();
+
+    // 5. Dots (top-right)
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        ctx.beginPath();
+        ctx.arc(canvas.width - s(12 + 10 + col * 18), s(12 + 5 + row * 18), s(5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 6. Dots (bottom-left)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 3; col++) {
+        ctx.beginPath();
+        ctx.arc(s(20 + 5 + col * 26), canvas.height - s(22 + 5 + row * 26), s(5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 7. No photo — just placeholder icon
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(circleX, circleY, circleR, 0, Math.PI * 2);
+    ctx.clip();
+    // Draw simple user silhouette placeholder
+    ctx.fillStyle = '#bbb';
+    ctx.beginPath();
+    ctx.arc(circleX, circleY - s(20), s(35), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(circleX, circleY + s(60), s(55), s(45), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 8. Logo
+    if (logoImg) {
+      const logoH = s(40);
+      const logoW = (logoImg.width / logoImg.height) * logoH;
+      ctx.drawImage(logoImg, s(22), s(12), logoW, logoH);
+    }
+
+    // 9. Name & info text
+    const TEXT_LEFT = 26;
+    const INFO_TOP = 133 + 230 + 16;
+    ctx.fillStyle = '#999999';
+    ctx.textAlign = 'left';
+    ctx.font = `800 ${s(24)}px Poppins, sans-serif`;
+    ctx.fillText(data.name || 'N/A', s(TEXT_LEFT), s(INFO_TOP) + s(24));
+
+    ctx.fillStyle = '#D94035';
+    ctx.font = `600 ${s(16)}px Poppins, sans-serif`;
+    ctx.fillText(data.jabatan || '-', s(TEXT_LEFT), s(INFO_TOP) + s(24) + s(28));
+
+    // NIK
+    ctx.fillStyle = '#999';
+    ctx.textAlign = 'right';
+    ctx.font = `700 ${s(16)}px Poppins, sans-serif`;
+    ctx.fillText(data.nik || '-', canvas.width - s(22), canvas.height - s(18));
+
+    // 10. ══ CANCEL WATERMARK ══
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-Math.PI / 4); // 45 degrees diagonal
+
+    // Red semi-transparent background box
+    const wmText = 'CANCEL';
+    ctx.font = `900 ${s(72)}px Poppins, Impact, sans-serif`;
+    const wmWidth = ctx.measureText(wmText).width;
+
+    ctx.fillStyle = 'rgba(220, 38, 38, 0.15)';
+    ctx.fillRect(-wmWidth / 2 - s(24), -s(50), wmWidth + s(48), s(100));
+
+    // Red border for the stamp box
+    ctx.strokeStyle = 'rgba(220, 38, 38, 0.6)';
+    ctx.lineWidth = s(4);
+    ctx.strokeRect(-wmWidth / 2 - s(24), -s(50), wmWidth + s(48), s(100));
+
+    // CANCEL text
+    ctx.fillStyle = 'rgba(220, 38, 38, 0.6)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wmText, 0, 0);
+    ctx.restore();
+
+    // 11. Export
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve({ blob, width: canvas.width, height: canvas.height });
+      }, 'image/png');
+    });
+  } catch (err) {
+    console.error('Cancel Card Export Error:', err);
+    throw err;
+  }
+}
+
 export function downloadFile(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -1,11 +1,13 @@
-import { getEmployee, savePhoto, saveProcessedPhoto } from '../services/api.js';
+import { getEmployee, savePhoto, saveProcessedPhoto, cancelEmployee, uploadToGLPI } from '../services/api.js';
 import { initCamera, capturePhoto, switchCamera, stopCamera, isCameraSupported, getCurrentFacing } from '../services/camera.js';
 // currentFacing is accessed via getCurrentFacing()
 import { removeBackground } from '../services/background-removal.js';
 import { triggerWebhook } from '../services/webhook.js';
+import { exportCancelledCard } from '../services/export.js';
 import { statusBadge, formatDate, blobToDataURL, getTicketUrl } from '../utils/helpers.js';
 import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
+import { getLogo } from '../templates/idcard.js';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.min.css';
 
@@ -52,6 +54,14 @@ export async function renderDetail(container, empId) {
           </div>
           <div class="info-row"><span class="info-label">Status</span>${statusBadge(emp.status)}</div>
           <div class="info-row"><span class="info-label">Tanggal</span><span class="info-value" style="font-size:0.82rem">${formatDate(emp.createdAt)}</span></div>
+        </div>
+
+        <!-- Cancel / Batal Join Button -->
+        <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+          <button class="btn btn-lg" id="btn-cancel-join" style="width:100%; background:transparent; color:#991b1b; border:1px solid rgba(153,27,27,0.3); gap:8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+            Batal Join / Cancel
+          </button>
         </div>
       </div>
 
@@ -126,6 +136,34 @@ export async function renderDetail(container, empId) {
         </div>
       </div>
     </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <div id="cancel-modal" class="modal-overlay" style="display:none">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <h2 style="color:#991b1b">⚠️ Konfirmasi Pembatalan</h2>
+          <button class="modal-close" id="btn-cancel-modal-close">✕</button>
+        </div>
+        <div style="padding:8px 0 20px">
+          <p style="color:var(--text-secondary); font-size:0.9rem; line-height:1.6">
+            Apakah Anda yakin ingin membatalkan proses ID Card untuk <strong>${emp.name}</strong>?<br/><br/>
+            Tindakan ini akan:
+          </p>
+          <ul style="color:var(--text-secondary); font-size:0.85rem; margin:12px 0 0 20px; line-height:1.8">
+            <li>Menghapus semua foto yang sudah diambil</li>
+            <li>Upload template ID Card kosong dengan watermark <strong style="color:#991b1b">CANCEL</strong> ke GLPI</li>
+            <li>Menandai tiket <strong>${emp.ticketId}</strong> sebagai Solved</li>
+          </ul>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="btn-cancel-no">Tidak, Kembali</button>
+          <button class="btn btn-lg" id="btn-cancel-yes" style="background:linear-gradient(135deg,#991b1b,#7f1d1d); color:#fff;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+            Ya, Batalkan
+          </button>
+        </div>
+      </div>
+    </div>
   `;
 
   // === Event Handlers ===
@@ -134,6 +172,59 @@ export async function renderDetail(container, empId) {
 
   // Back button
   container.querySelector('#btn-back').addEventListener('click', () => goBack('/'));
+
+  // ── CANCEL / BATAL JOIN ────────────────────────────────────────
+  container.querySelector('#btn-cancel-join').addEventListener('click', () => {
+    container.querySelector('#cancel-modal').style.display = 'flex';
+  });
+  container.querySelector('#btn-cancel-modal-close').addEventListener('click', () => {
+    container.querySelector('#cancel-modal').style.display = 'none';
+  });
+  container.querySelector('#btn-cancel-no').addEventListener('click', () => {
+    container.querySelector('#cancel-modal').style.display = 'none';
+  });
+  container.querySelector('#btn-cancel-yes').addEventListener('click', async () => {
+    const btnYes = container.querySelector('#btn-cancel-yes');
+    btnYes.disabled = true;
+    btnYes.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px"></div> Memproses...';
+
+    try {
+      // 1. Generate cancelled ID card with watermark
+      const cancelCard = await exportCancelledCard({
+        name: emp.name,
+        jabatan: emp.jabatan,
+        nik: emp.nik,
+        logo: getLogo() || null,
+      });
+
+      // 2. Upload to GLPI (will also solve the ticket)
+      const uploaded = await uploadToGLPI(emp.ticketId, cancelCard.blob);
+      if (uploaded) {
+        showToast('ID Card CANCEL berhasil diupload ke GLPI & tiket di-solve.', 'success');
+      } else {
+        showToast('Cancel lokal berhasil, tapi gagal upload ke GLPI.', 'warning');
+      }
+
+      // 3. Mark as cancelled locally
+      await cancelEmployee(empId);
+
+      // 4. Trigger webhook
+      await triggerWebhook('card_cancelled', {
+        employeeId: empId,
+        name: emp.name,
+        nik: emp.nik,
+        ticketId: emp.ticketId,
+      });
+
+      showToast(`Proses ID Card ${emp.name} telah dibatalkan.`, 'warning');
+      navigate('/finished');
+    } catch (err) {
+      console.error('Cancel failed:', err);
+      showToast('Gagal membatalkan: ' + err.message, 'error');
+      btnYes.disabled = false;
+      btnYes.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg> Ya, Batalkan';
+    }
+  });
 
   // Tab switching
   container.querySelectorAll('.tab-btn').forEach(btn => {

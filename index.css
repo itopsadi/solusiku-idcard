@@ -321,6 +321,8 @@ body {
 .badge-ready::before { background: #06b6d4; }
 .badge-approved { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
 .badge-approved::before { background: #10b981; }
+.badge-cancelled { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; text-decoration: line-through; }
+.badge-cancelled::before { background: #ef4444; }
 
 /* ===== BUTTONS ===== */
 .btn {
