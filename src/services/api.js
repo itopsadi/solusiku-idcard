@@ -749,15 +749,26 @@ export async function uploadToGLPI(ticketId, blob) {
     return false;
   }
 
-  // Use admin session (full permissions) with fallback to user session
-  let adminSession = await getAdminSessionToken();
-  let session = adminSession || glpiSessionToken || await getSession();
+  // Prioritize USER session so the upload is recorded under the actual user's name in GLPI.
+  // Admin session is only used as a FALLBACK if the user session fails (permission denied, expired, etc.)
+  const userSession = glpiSessionToken || await getSession();
 
-  if (!session) {
-    console.warn('[GLPI Upload] No session available, skipping upload.');
-    return false;
+  if (!userSession) {
+    // No user session at all — try admin as last resort
+    const adminSession = await getAdminSessionToken();
+    if (!adminSession) {
+      console.warn('[GLPI Upload] No session available, skipping upload.');
+      return false;
+    }
+    console.warn('[GLPI Upload] No user session, using admin session as fallback.');
+    return doUploadWithRetry(ticketId, blob, adminSession);
   }
 
+  return doUploadWithRetry(ticketId, blob, userSession);
+}
+
+
+async function doUploadWithRetry(ticketId, blob, primarySession) {
   async function doUpload(activeSession) {
     const formData = new FormData();
     const manifest = {
@@ -828,25 +839,33 @@ export async function uploadToGLPI(ticketId, blob) {
   }
 
   try {
-    return await doUpload(session);
+    return await doUpload(primarySession);
   } catch (err) {
-    console.warn('[GLPI Upload] First attempt failed:', err.message);
+    console.warn('[GLPI Upload] First attempt (user session) failed:', err.message);
 
-    // Auto-recovery: if session expired, clear cache and get fresh admin session
-    if (err.message.includes('400') || err.message.includes('401') || err.message.includes('ERROR_SESSION')) {
-      console.log('[GLPI Upload] Session likely expired, attempting auto-recovery...');
-      resetAdminSessionCache();
-      const freshAdmin = await getAdminSessionToken();
-      const freshSession = freshAdmin || await getSession();
+    // Fallback: if user session failed, try admin session as last resort
+    // This ensures upload still succeeds even if user lacks permission
+    const adminSession = await getAdminSessionToken();
+    if (adminSession && adminSession !== primarySession) {
+      try {
+        console.log('[GLPI Upload] Retrying with admin session fallback...');
+        return await doUpload(adminSession);
+      } catch (retryErr) {
+        console.error('[GLPI Upload] Admin fallback also failed:', retryErr);
+        return false;
+      }
+    }
 
-      if (freshSession && freshSession !== session) {
-        try {
-          console.log('[GLPI Upload] Retrying with fresh session...');
-          return await doUpload(freshSession);
-        } catch (retryErr) {
-          console.error('[GLPI Upload] Retry also failed:', retryErr);
-          return false;
-        }
+    // Also try refreshing admin session if it was stale
+    resetAdminSessionCache();
+    const freshAdmin = await getAdminSessionToken();
+    if (freshAdmin && freshAdmin !== primarySession) {
+      try {
+        console.log('[GLPI Upload] Retrying with fresh admin session...');
+        return await doUpload(freshAdmin);
+      } catch (retryErr) {
+        console.error('[GLPI Upload] Fresh admin retry also failed:', retryErr);
+        return false;
       }
     }
 
@@ -854,6 +873,7 @@ export async function uploadToGLPI(ticketId, blob) {
     return false;
   }
 }
+
 
 export async function uploadGlobalLogo(dataURL) {
   const session = await getSession();
