@@ -197,8 +197,8 @@ export async function renderDetail(container, empId) {
         logo: getLogo() || null,
       });
 
-      // 2. Upload to GLPI (will also solve the ticket)
-      const uploaded = await uploadToGLPI(emp.ticketId, cancelCard.blob);
+      // 2. Upload to GLPI (will also solve the ticket + add cancel followup marker)
+      const uploaded = await uploadToGLPI(emp.ticketId, cancelCard.blob, true);
       if (uploaded) {
         showToast('ID Card CANCEL berhasil diupload ke GLPI & tiket di-solve.', 'success');
       } else {

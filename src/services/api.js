@@ -1,5 +1,25 @@
 // Mock data layer + GLPI Integration
 const STORAGE_KEY = 'solusiku_idcard_data';
+const CANCELLED_KEY = 'solusiku_cancelled_tickets';
+
+// Persistent cancelled tickets registry — survives cache clears & deployment resets
+function getCancelledTickets() {
+  try {
+    return JSON.parse(localStorage.getItem(CANCELLED_KEY) || '[]');
+  } catch { return []; }
+}
+function addCancelledTicket(ticketId) {
+  const list = getCancelledTickets();
+  const normalized = String(ticketId).replace(/^GLPI-/i, '');
+  if (!list.includes(normalized)) {
+    list.push(normalized);
+    localStorage.setItem(CANCELLED_KEY, JSON.stringify(list));
+  }
+}
+function isCancelledTicket(ticketId) {
+  const normalized = String(ticketId).replace(/^GLPI-/i, '');
+  return getCancelledTickets().includes(normalized);
+}
 
 const IS_DEV = import.meta.env.DEV;
 export const REAL_GLPI_URL = new URL(import.meta.env.VITE_GLPI_API_URL).origin;
@@ -88,7 +108,20 @@ const DEFAULT_EMPLOYEES = [
 function loadData() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Auto-migrate: register any existing cancelled employees into the persistent registry
+      try {
+        data.forEach(e => {
+          if (e.status === 'cancelled' && e.ticketId) {
+            addCancelledTicket(e.ticketId);
+          }
+        });
+      } catch (migErr) {
+        console.warn('[Data] Cancelled migration skipped:', migErr);
+      }
+      return data;
+    }
   } catch { /* ignore */ }
   return [...DEFAULT_EMPLOYEES];
 }
@@ -460,6 +493,46 @@ export async function fetchGLPITickets() {
              ticketDate >= thirtyDaysAgo;
     });
 
+    // --- Detect cancelled tickets from GLPI followups ---
+    // For Solved/Closed tickets, check if any ITILFollowup contains [IDCARD-CANCELLED]
+    const cancelledTicketIds = new Set();
+    const solvedTickets = onboardingTickets.filter(t => t.status === 5 || t.status === 6);
+    
+    if (solvedTickets.length > 0) {
+      const followupChecks = await Promise.allSettled(
+        solvedTickets.map(async (t) => {
+          // Skip if already in local registry (optimization)
+          if (isCancelledTicket(t.id)) {
+            cancelledTicketIds.add(String(t.id));
+            return;
+          }
+          try {
+            const fRes = await fetch(`${GLPI_API_URL}/Ticket/${t.id}/ITILFollowup`, {
+              headers: {
+                'App-Token': GLPI_APP_TOKEN,
+                'Session-Token': activeSession
+              }
+            });
+            if (fRes.ok) {
+              const followups = await fRes.json();
+              if (Array.isArray(followups)) {
+                const hasCancelMarker = followups.some(f => 
+                  (f.content || '').includes('[IDCARD-CANCELLED]')
+                );
+                if (hasCancelMarker) {
+                  cancelledTicketIds.add(String(t.id));
+                  addCancelledTicket(t.id); // Cache locally for faster future lookups
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore individual followup fetch failures
+          }
+        })
+      );
+      console.log(`[GLPI Sync] Detected ${cancelledTicketIds.size} cancelled tickets from GLPI followups.`);
+    }
+
     const glpiEmployees = onboardingTickets.map(t => {
       const id = `glpi-${t.id}`;
       const existing = localData.find(e => e.id === id) || {};
@@ -486,11 +559,20 @@ export async function fetchGLPITickets() {
       // Logic Sinkronisasi Status:
       let finalStatus = existing.status || 'waiting_photo';
 
+      // Check persistent cancelled registry AND GLPI followups for cancel marker
+      const wasCancelled = finalStatus === 'cancelled' 
+        || isCancelledTicket(t.id) 
+        || cancelledTicketIds.has(String(t.id));
+
       if (t.status === 5 || t.status === 6) {
         // Jika di GLPI sudah Solved/Closed:
-        // - Jika lokal sudah 'cancelled', pertahankan cancelled
+        // - Jika pernah di-cancel (lokal, registry, atau GLPI followup), pertahankan cancelled
         // - Jika belum, set 'approved'
-        if (finalStatus !== 'cancelled') {
+        if (wasCancelled) {
+          finalStatus = 'cancelled';
+          // Also persist to local registry for faster future lookups
+          addCancelledTicket(t.id);
+        } else {
           finalStatus = 'approved';
         }
       } else if (t.status === 2) {
@@ -727,6 +809,11 @@ export function approveEmployee(id) {
 export async function cancelEmployee(id) {
   await deletePhotoDB(`${id}_photo`);
   await deletePhotoDB(`${id}_processed`);
+  // Find ticket ID from employee data and persist it in the cancelled registry
+  const emp = employees.find(e => e.id === id);
+  if (emp && emp.ticketId) {
+    addCancelledTicket(emp.ticketId);
+  }
   updateEmployee(id, { photo: null, processedPhoto: null, status: 'cancelled', cancelledAt: new Date().toISOString() });
 }
 
@@ -754,7 +841,7 @@ export async function resetAllData() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-export async function uploadToGLPI(ticketId, blob) {
+export async function uploadToGLPI(ticketId, blob, isCancelled = false) {
   if (!GLPI_API_URL || GLPI_API_URL.includes('localhost')) {
     console.warn('[GLPI Upload] GLPI not configured, skipping upload.');
     return false;
@@ -772,10 +859,14 @@ export async function uploadToGLPI(ticketId, blob) {
       return false;
     }
     console.warn('[GLPI Upload] No user session, using admin session as fallback.');
-    return doUploadWithRetry(ticketId, blob, adminSession);
+    const result = await doUploadWithRetry(ticketId, blob, adminSession);
+    if (result && isCancelled) await addCancelFollowup(ticketId, adminSession);
+    return result;
   }
 
-  return doUploadWithRetry(ticketId, blob, userSession);
+  const result = await doUploadWithRetry(ticketId, blob, userSession);
+  if (result && isCancelled) await addCancelFollowup(ticketId, userSession);
+  return result;
 }
 
 
@@ -882,6 +973,40 @@ async function doUploadWithRetry(ticketId, blob, primarySession) {
 
     console.error('[GLPI Upload] Upload failed:', err);
     return false;
+  }
+}
+
+/**
+ * Add a followup comment to the GLPI ticket marking it as CANCELLED.
+ * This marker is stored IN GLPI and can be detected during sync across all devices.
+ */
+async function addCancelFollowup(ticketId, sessionToken) {
+  const ticketNum = String(ticketId).replace('GLPI-', '');
+  try {
+    const activeSession = sessionToken || await getAdminSessionToken();
+    if (!activeSession) return;
+
+    const res = await fetch(`${GLPI_API_URL}/Ticket/${ticketNum}/ITILFollowup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'App-Token': GLPI_APP_TOKEN,
+        'Session-Token': activeSession
+      },
+      body: JSON.stringify({
+        input: {
+          content: '[IDCARD-CANCELLED] Proses pembuatan ID Card dibatalkan. Karyawan tidak jadi bergabung.',
+          is_private: 0
+        }
+      })
+    });
+    if (res.ok) {
+      console.log('[GLPI] Cancel followup added to ticket', ticketNum);
+    } else {
+      console.warn('[GLPI] Failed to add cancel followup:', res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn('[GLPI] addCancelFollowup error:', err);
   }
 }
 

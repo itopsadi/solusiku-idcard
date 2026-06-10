@@ -300,25 +300,8 @@ export function renderUserMaker(container) {
         datalistUsers.appendChild(opt);
       });
 
-      // Only approved employees with photos
-      const approvedRaw = allEmployees.filter(e => e.status === 'approved');
-      
-      const approvedWithPhotoChecks = await Promise.all(
-        approvedRaw.map(async (emp) => {
-          try {
-            const empData = await getEmployee(emp.id);
-            if (empData && (empData.processedPhoto || empData.photo)) {
-              return emp;
-            }
-          } catch (e) {
-            console.error('[UserMaker] Gagal memeriksa foto karyawan:', e);
-          }
-          console.log(`[UserMaker] Karyawan ${emp.name} diabaikan karena tidak memiliki foto (tiket batal/conversation).`);
-          return null;
-        })
-      );
-      
-      const approved = approvedWithPhotoChecks.filter(Boolean);
+      // Only approved employees (exclude cancelled)
+      const approved = allEmployees.filter(e => e.status === 'approved');
 
       if (approved.length === 0) {
         content.innerHTML = `
