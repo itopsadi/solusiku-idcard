@@ -31,12 +31,14 @@
       display: none !important;
     }
 
-    /* Role-based: Hide User Maker & Settings for non-Super-Admin/IT */
+    /* Role-based: Hide User Maker, Settings & Activity Log for non-Super-Admin/IT */
     #nav-settings-sidebar,
     #nav-settings-mobile,
     #nav-user-maker-sidebar,
     #nav-user-maker-mobile,
-    #nav-group-user-maker {
+    #nav-group-user-maker,
+    #nav-activity-log-sidebar,
+    #nav-activity-log-mobile {
       display: none !important;
     }
 
@@ -46,6 +48,14 @@
     }
 
     body.is-super-admin #nav-settings-mobile {
+      display: flex !important;
+    }
+
+    body.is-super-admin #nav-activity-log-sidebar {
+      display: list-item !important;
+    }
+
+    body.is-super-admin #nav-activity-log-mobile {
       display: flex !important;
     }
 
@@ -184,6 +194,17 @@
               <line x1="23" y1="11" x2="17" y2="11"></line>
             </svg>
             <span>Buat User GLPI</span>
+          </a></li>
+        <li id="nav-activity-log-sidebar" style="display: none;"><a href="#/activity-log" class="nav-link"
+            data-route="/activity-log">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <span>Aktivitas Log</span>
           </a></li>
         <li id="nav-settings-sidebar" style="display: none;"><a href="#/settings" class="nav-link"
             data-route="/settings">
@@ -370,6 +391,16 @@
         <line x1="23" y1="11" x2="17" y2="11"></line>
       </svg>
       <span>Buat User</span>
+    </a>
+    <a href="#/activity-log" class="mobile-nav-link" data-route="/activity-log" id="nav-activity-log-mobile" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+      <span>Log</span>
     </a>
     <a href="#/settings" class="mobile-nav-link" data-route="/settings" id="nav-settings-mobile">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

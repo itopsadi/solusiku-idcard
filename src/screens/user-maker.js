@@ -773,6 +773,16 @@ export function renderUserMaker(container) {
         
         modal.style.display = 'none';
         
+        // Log user creation activity
+        try {
+          const { logActivity } = await import('../services/activity-log.js');
+          logActivity('GLPI_USER_CREATED', {
+            username: payload.username,
+            fullName: `${payload.firstName} ${payload.lastName}`,
+            nik: payload.nik
+          });
+        } catch(e) { /* ignore */ }
+        
         // Show Credentials Popup
         document.getElementById('cred-name').textContent = `${payload.firstName} ${payload.lastName}`;
         document.getElementById('cred-uname').textContent = payload.username;

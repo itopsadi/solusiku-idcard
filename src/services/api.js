@@ -2,6 +2,16 @@
 const STORAGE_KEY = 'solusiku_idcard_data';
 const CANCELLED_KEY = 'solusiku_cancelled_tickets';
 
+// Lazy import to avoid circular dependency
+let _logActivity = null;
+async function getLogActivity() {
+  if (!_logActivity) {
+    const mod = await import('./activity-log.js');
+    _logActivity = mod.logActivity;
+  }
+  return _logActivity;
+}
+
 // Persistent cancelled tickets registry — survives cache clears & deployment resets
 function getCancelledTickets() {
   try {
@@ -413,6 +423,13 @@ export async function loginUser(username, password, rememberMe = true) {
     }
 
     glpiSessionToken = sessionToken;
+
+    // Log login activity
+    try {
+      const log = await getLogActivity();
+      log('LOGIN', { username, role: userProfile.role, fullName: userProfile.name });
+    } catch (e) { /* ignore logging errors */ }
+
     return true;
 
   } catch (err) {
@@ -421,6 +438,12 @@ export async function loginUser(username, password, rememberMe = true) {
 }
 
 export function logoutUser() {
+  // Log logout activity before clearing session
+  const pStr = localStorage.getItem('solusiku_user_profile') || sessionStorage.getItem('solusiku_user_profile');
+  let loggedUser = 'Unknown';
+  try { if (pStr) loggedUser = JSON.parse(pStr).name || 'Unknown'; } catch(e) {}
+  getLogActivity().then(log => log('LOGOUT', { username: loggedUser })).catch(() => {});
+
   const sessionToken = localStorage.getItem('solusiku_user_session') || sessionStorage.getItem('solusiku_user_session');
   if (sessionToken) {
     fetch(`${GLPI_API_URL}/killSession`, {
@@ -467,13 +490,16 @@ export async function fetchGLPITickets() {
     const activeSession = adminSession || session;
     console.log('[GLPI] fetchGLPITickets using session:', adminSession ? 'ADMIN BYPASS (Synchronized)' : 'USER SESSION');
 
-    // Ambil 300 tiket terakhir untuk memastikan data 1 bulan tercover
-    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-300&expand_dropdowns=true&sort=id&order=DESC`, {
+    // Ambil 1000 tiket terakhir untuk memastikan data 90 hari tercover
+    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-1000&expand_dropdowns=true&sort=id&order=DESC`, {
       headers: {
         'App-Token': GLPI_APP_TOKEN,
         'Session-Token': activeSession
       }
     });
+    
+    // Fetch central printed registry asynchronously alongside tickets
+    await fetchPrintedRegistry();
     const tickets = await res.json();
     if (!Array.isArray(tickets)) throw new Error('Invalid response');
 
@@ -481,16 +507,16 @@ export async function fetchGLPITickets() {
     const localData = loadData();
 
     // Filter tiket onboarding (Device Request) yang berstatus Assigned (2), Solved (5), atau Closed (6)
-    // DAN batasi hanya untuk 30 hari (1 bulan) terakhir
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // DAN batasi hanya untuk 90 hari terakhir
+    const ninetyDaysAgoAPI = new Date();
+    ninetyDaysAgoAPI.setDate(ninetyDaysAgoAPI.getDate() - 90);
 
     const onboardingTickets = tickets.filter(t => {
       const title = t.name || '';
       const ticketDate = new Date(t.date || t.date_creation);
       return title.toLowerCase().includes('device request') && 
              [2, 5, 6].includes(t.status) &&
-             ticketDate >= thirtyDaysAgo;
+             ticketDate >= ninetyDaysAgoAPI;
     });
 
     // --- Detect cancelled tickets from GLPI followups ---
@@ -567,11 +593,14 @@ export async function fetchGLPITickets() {
       if (t.status === 5 || t.status === 6) {
         // Jika di GLPI sudah Solved/Closed:
         // - Jika pernah di-cancel (lokal, registry, atau GLPI followup), pertahankan cancelled
+        // - Jika sudah pernah ditandai dicetak, ubah jadi printed
         // - Jika belum, set 'approved'
         if (wasCancelled) {
           finalStatus = 'cancelled';
           // Also persist to local registry for faster future lookups
           addCancelledTicket(t.id);
+        } else if (isPrintedTicket(t.id)) {
+          finalStatus = 'printed';
         } else {
           finalStatus = 'approved';
         }
@@ -795,15 +824,30 @@ export function updateEmployee(id, updates) {
 export async function savePhoto(id, photoDataURL) {
   await savePhotoDB(`${id}_photo`, photoDataURL);
   updateEmployee(id, { photo: '[photo]', status: 'processing' });
+  // Log photo capture
+  const emp = employees.find(e => e.id === id);
+  getLogActivity().then(log => log('PHOTO_CAPTURED', {
+    employeeName: emp?.name, nik: emp?.nik, ticketId: emp?.ticketId
+  })).catch(() => {});
 }
 
 export async function saveProcessedPhoto(id, photoDataURL) {
   await savePhotoDB(`${id}_processed`, photoDataURL);
   updateEmployee(id, { processedPhoto: '[processed]', status: 'ready_review' });
+  // Log BG removal
+  const emp = employees.find(e => e.id === id);
+  getLogActivity().then(log => log('BG_REMOVED', {
+    employeeName: emp?.name, nik: emp?.nik
+  })).catch(() => {});
 }
 
 export function approveEmployee(id) {
+  const emp = employees.find(e => e.id === id);
   updateEmployee(id, { status: 'approved', approvedAt: new Date().toISOString() });
+  // Log approval
+  getLogActivity().then(log => log('CARD_APPROVED', {
+    employeeName: emp?.name, nik: emp?.nik, ticketId: emp?.ticketId
+  })).catch(() => {});
 }
 
 export async function cancelEmployee(id) {
@@ -815,12 +859,21 @@ export async function cancelEmployee(id) {
     addCancelledTicket(emp.ticketId);
   }
   updateEmployee(id, { photo: null, processedPhoto: null, status: 'cancelled', cancelledAt: new Date().toISOString() });
+  // Log cancellation
+  getLogActivity().then(log => log('CARD_CANCELLED', {
+    employeeName: emp?.name, nik: emp?.nik, ticketId: emp?.ticketId
+  })).catch(() => {});
 }
 
 export async function resetEmployee(id) {
+  const emp = employees.find(e => e.id === id);
   await deletePhotoDB(`${id}_photo`);
   await deletePhotoDB(`${id}_processed`);
   updateEmployee(id, { photo: null, processedPhoto: null, status: 'waiting_photo' });
+  // Log retake
+  getLogActivity().then(log => log('PHOTO_RETAKE', {
+    employeeName: emp?.name, nik: emp?.nik, ticketId: emp?.ticketId
+  })).catch(() => {});
 }
 
 export async function getStats() {
@@ -1323,5 +1376,145 @@ export async function addGLPIUserGroup(userId, groupId) {
     return res.ok;
   } catch (err) { return false; }
 }
+
+// ==========================================
+// Centralized Printed Tracking (GLPI Pseudo-Database)
+// ==========================================
+
+let centralPrintedRegistry = [];
+let centralPrintedTicketId = null;
+
+export async function fetchPrintedRegistry() {
+  const session = await getAdminSessionToken() || await getSession();
+  if (!session || !GLPI_API_URL || GLPI_API_URL.includes('localhost')) return [];
+
+  try {
+    const searchRes = await fetch(`${GLPI_API_URL}/search/Ticket?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]=SOLUSIKU_PRINT_REGISTRY&sort=id&order=DESC`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+    const searchData = await searchRes.json();
+    if (!searchData.data || searchData.data.length === 0) return [];
+
+    centralPrintedTicketId = searchData.data[0]['2'];
+
+    const ticketRes = await fetch(`${GLPI_API_URL}/Ticket/${centralPrintedTicketId}`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+
+    if (!ticketRes.ok) return [];
+    const ticketData = await ticketRes.json();
+    const content = ticketData.content || '';
+    
+    // Parse content
+    const match = content.match(/<!--PRINT_REGISTRY_START-->(.*?)<!--PRINT_REGISTRY_END-->/s);
+    if (match && match[1]) {
+      const decoded = JSON.parse(match[1].trim());
+      centralPrintedRegistry = decoded;
+      return decoded;
+    }
+    return [];
+  } catch (err) {
+    console.error('[GLPI Print Registry Fetch Error]', err);
+    return [];
+  }
+}
+
+export async function uploadPrintedRegistry(registryArray) {
+  const session = await getAdminSessionToken() || await getSession();
+  if (!session || !GLPI_API_URL || GLPI_API_URL.includes('localhost')) return false;
+
+  try {
+    const payloadStr = JSON.stringify(registryArray);
+    const contentPayload = `<!--PRINT_REGISTRY_START-->${payloadStr}<!--PRINT_REGISTRY_END-->`;
+
+    if (centralPrintedTicketId) {
+      // Update existing ticket
+      const updateRes = await fetch(`${GLPI_API_URL}/Ticket/${centralPrintedTicketId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'App-Token': GLPI_APP_TOKEN,
+          'Session-Token': session
+        },
+        body: JSON.stringify({ input: { id: centralPrintedTicketId, content: contentPayload } })
+      });
+      return updateRes.ok;
+    } else {
+      // Create new ticket
+      const createRes = await fetch(`${GLPI_API_URL}/Ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'App-Token': GLPI_APP_TOKEN,
+          'Session-Token': session
+        },
+        body: JSON.stringify({
+          input: {
+            name: 'SOLUSIKU_PRINT_REGISTRY',
+            content: contentPayload,
+            status: 5 // Closed/Solved
+          }
+        })
+      });
+      if (createRes.ok) {
+        const createData = await createRes.json();
+        centralPrintedTicketId = createData.id;
+        return true;
+      }
+      return false;
+    }
+  } catch (err) {
+    console.error('[GLPI Print Registry Upload Error]', err);
+    return false;
+  }
+}
+
+export function isPrintedTicket(ticketId) {
+  const idStr = String(ticketId).replace(/^GLPI-/i, '');
+  return centralPrintedRegistry.some(item => item.ticketId === idStr);
+}
+
+export function getPrintedInfo(ticketId) {
+  const idStr = String(ticketId).replace(/^GLPI-/i, '');
+  return centralPrintedRegistry.find(item => item.ticketId === idStr) || null;
+}
+
+export async function markAsPrinted(empId, signatureDataURL, technicianName) {
+  const emp = employees.find(e => e.id === empId);
+  if (!emp) throw new Error('Karyawan tidak ditemukan');
+  
+  if (!centralPrintedRegistry) await fetchPrintedRegistry();
+
+  if (emp.ticketId) {
+    const rawId = emp.ticketId.replace(/^GLPI-/i, '');
+    const exists = centralPrintedRegistry.some(item => item.ticketId === rawId);
+    if (!exists) {
+      centralPrintedRegistry.push({
+        ticketId: rawId,
+        technicianName: technicianName,
+        signature: signatureDataURL,
+        timestamp: Date.now()
+      });
+      const success = await uploadPrintedRegistry(centralPrintedRegistry);
+      if (!success) {
+        centralPrintedRegistry.pop(); // rollback
+        throw new Error('Gagal menyinkronkan data cetak ke server GLPI');
+      }
+    }
+  }
+  
+  // Update memory state
+  emp.status = 'printed';
+  saveData(employees);
+  
+  // Log activity
+  try {
+    const { logActivity } = await import('./activity-log.js');
+    logActivity('IDCARD_PRINTED', { fullName: emp.name, ticketId: emp.ticketId, technician: technicianName });
+  } catch(e) {}
+  
+  return true;
+}
+
 
 

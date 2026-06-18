@@ -8,6 +8,7 @@ import { statusBadge, formatDate, blobToDataURL, getTicketUrl } from '../utils/h
 import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import { getLogo } from '../templates/idcard.js';
+import { logActivity } from '../services/activity-log.js';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.min.css';
 
@@ -290,6 +291,7 @@ export async function renderDetail(container, empId) {
   async function handleFile(file) {
     const dataURL = await blobToDataURL(file);
     openCropper(dataURL);
+    logActivity('PHOTO_UPLOADED', { employeeName: emp.name, nik: emp.nik, ticketId: emp.ticketId }).catch(() => {});
   }
 
   // Cropper

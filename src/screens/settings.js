@@ -82,6 +82,10 @@ export async function renderSettings(container) {
     
     if (success) {
       showToast('Logo berhasil tersimpan secara permanen! Tersinkronisasi di semua perangkat.', 'success');
+      try {
+        const { logActivity } = await import('../services/activity-log.js');
+        logActivity('SETTINGS_CHANGED', { info: 'Logo perusahaan diubah' });
+      } catch(e) { /* ignore */ }
     } else {
       showToast('Gagal menyimpan ke server GLPI. Silakan periksa koneksi atau konfigurasi.', 'error');
     }

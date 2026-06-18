@@ -6,6 +6,7 @@ import { navigate, goBack } from '../utils/router.js';
 import { showToast } from '../utils/toast.js';
 import { formatDate, getTicketUrl } from '../utils/helpers.js';
 import { reCleanBackground } from '../services/background-removal.js';
+import { logActivity } from '../services/activity-log.js';
 
 export async function renderApproval(container, empId) {
   const emp = await getEmployee(empId);
@@ -382,6 +383,7 @@ export async function renderApproval(container, empId) {
           processedImgs.forEach(function(img) { img.src = cleanedURL; });
 
           showToast('Background berhasil dibersihkan ulang! ✨', 'success');
+          logActivity('BG_RECLEAN', { employeeName: emp.name, nik: emp.nik }).catch(() => {});
         } catch (err) {
           console.error('[Re-clean] Failed:', err);
           showToast('Gagal re-clean: ' + err.message, 'error');
@@ -415,6 +417,7 @@ export async function renderApproval(container, empId) {
         if (blob) {
           downloadFile(blob, filename);
           showToast('Downloaded from GLPI', 'success');
+          logActivity('CARD_DOWNLOADED', { employeeName: emp.name, nik: emp.nik, info: 'Dari GLPI' }).catch(() => {});
         } else {
           showToast('File tidak ditemukan di GLPI.', 'error');
         }
@@ -424,6 +427,7 @@ export async function renderApproval(container, empId) {
         var result = await exportToImage(cardEl, 300);
         downloadFile(result.blob, filename);
         showToast('Exported: ' + result.width + '×' + result.height + 'px (300 DPI)', 'success');
+        logActivity('CARD_DOWNLOADED', { employeeName: emp.name, nik: emp.nik, info: 'Canvas export' }).catch(() => {});
       }
     } catch (err) {
       showToast('Export gagal: ' + err.message, 'error');

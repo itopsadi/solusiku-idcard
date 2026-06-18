@@ -6,6 +6,7 @@ import { renderSettings } from './screens/settings.js';
 import { renderFinished } from './screens/finished.js';
 import { renderLogin } from './screens/login.js';
 import { renderUserMaker } from './screens/user-maker.js';
+import { renderActivityLog } from './screens/activity-log.js';
 import { logoutUser, fetchGlobalLogo, getStats, getEmployees, resetAdminSessionCache } from './services/api.js';
 import { setLogo } from './templates/idcard.js';
 import { registerSW } from 'virtual:pwa-register';
@@ -33,6 +34,7 @@ registerRoute('/settings', renderSettings);
 registerRoute('/finished', renderFinished);
 registerRoute('/login', renderLogin);
 registerRoute('/user-maker', renderUserMaker);
+registerRoute('/activity-log', renderActivityLog);
 
 // Global UI Interceptors
 function openSidebar() {

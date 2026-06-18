@@ -22,6 +22,7 @@ export const STATUS = {
   processing: { label: 'Diproses', class: 'badge-processing' },
   ready_review: { label: 'Siap Review', class: 'badge-ready' },
   approved: { label: 'Approved', class: 'badge-approved' },
+  printed: { label: 'Sudah Dicetak', class: 'badge-printed' },
   cancelled: { label: 'Cancelled', class: 'badge-cancelled' },
 };
 
