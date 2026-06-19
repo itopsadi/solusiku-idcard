@@ -15,7 +15,7 @@ export async function renderApproval(container, empId) {
     return;
   }
 
-  const isApproved = emp.status === 'approved';
+  const isApproved = emp.status === 'approved' || emp.status === 'printed';
   const photoToUse  = emp.processedPhoto || emp.photo;
 
   // ─── Declare ALL mutable state at the TOP — no TDZ issues ───
