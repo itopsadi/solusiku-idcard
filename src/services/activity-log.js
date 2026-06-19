@@ -4,26 +4,9 @@
  * Only accessible by super-admin users.
  */
 
-const DB_NAME = 'SolusikuActivityLogDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'logs';
-const RETENTION_DAYS = 180;
+import { getCentralActivityTicketId, uploadActivityLogEntry, fetchActivityLogsFromGLPI } from './api.js';
 
-// --- IndexedDB Setup ---
-const dbPromise = new Promise((resolve, reject) => {
-  const request = indexedDB.open(DB_NAME, DB_VERSION);
-  request.onupgradeneeded = (e) => {
-    const db = e.target.result;
-    if (!db.objectStoreNames.contains(STORE_NAME)) {
-      const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-      store.createIndex('timestamp', 'timestamp', { unique: false });
-      store.createIndex('action', 'action', { unique: false });
-      store.createIndex('user', 'user', { unique: false });
-    }
-  };
-  request.onsuccess = (e) => resolve(e.target.result);
-  request.onerror = (e) => reject(e.target.error);
-});
+const RETENTION_DAYS = 180;
 
 // --- Action Types ---
 export const ACTION_TYPES = {
@@ -39,6 +22,7 @@ export const ACTION_TYPES = {
   PHOTO_RETAKE: { key: 'PHOTO_RETAKE', label: 'Retake Foto', icon: '🔁', color: '#ea580c' },
   GLPI_USER_CREATED: { key: 'GLPI_USER_CREATED', label: 'User GLPI Dibuat', icon: '👤', color: '#2563eb' },
   SETTINGS_CHANGED: { key: 'SETTINGS_CHANGED', label: 'Settings Diubah', icon: '⚙️', color: '#475569' },
+  IDCARD_PRINTED: { key: 'IDCARD_PRINTED', label: 'ID Card Dicetak', icon: '🖨️', color: '#8b5cf6' },
 };
 
 /**
@@ -62,7 +46,6 @@ function getCurrentUser() {
  */
 export async function logActivity(action, details = {}) {
   try {
-    const db = await dbPromise;
     const entry = {
       timestamp: new Date().toISOString(),
       action: action,
@@ -70,15 +53,14 @@ export async function logActivity(action, details = {}) {
       details: details,
     };
 
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).add(entry);
-    await new Promise((resolve, reject) => {
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-
-    // Auto-cleanup old entries (fire and forget)
-    cleanupOldEntries().catch(() => {});
+    // Fire and forget, don't block the UI
+    setTimeout(async () => {
+      try {
+        await uploadActivityLogEntry(entry);
+      } catch (err) {
+        console.warn('[ActivityLog] Failed to sync activity to GLPI', err);
+      }
+    }, 0);
   } catch (err) {
     console.warn('[ActivityLog] Failed to log activity:', err);
   }
@@ -91,19 +73,8 @@ export async function logActivity(action, details = {}) {
  */
 export async function getActivities(filters = {}) {
   try {
-    const db = await dbPromise;
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-
-    // Get all entries (we filter in JS for flexibility with compound filters)
-    const allEntries = await new Promise((resolve, reject) => {
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-
-    // Sort newest first
-    allEntries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Get all entries from centralized GLPI server
+    const allEntries = await fetchActivityLogsFromGLPI();
 
     // Apply filters
     let filtered = allEntries;
@@ -150,14 +121,7 @@ export async function getActivities(filters = {}) {
  */
 export async function getActivityStats() {
   try {
-    const db = await dbPromise;
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const allEntries = await new Promise((resolve) => {
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
-    });
+    const allEntries = await fetchActivityLogsFromGLPI();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -183,45 +147,12 @@ export async function getActivityStats() {
  */
 export async function clearActivities() {
   try {
-    const db = await dbPromise;
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).clear();
-    await new Promise((resolve) => { tx.oncomplete = resolve; });
-    return true;
+    // Send a CLEAR_ALL marker to wipe memory locally
+    const success = await uploadActivityLogEntry({ action: 'CLEAR_ALL', timestamp: new Date().toISOString() });
+    return success;
   } catch (err) {
     console.error('[ActivityLog] Failed to clear:', err);
     return false;
-  }
-}
-
-/**
- * Remove entries older than RETENTION_DAYS
- */
-async function cleanupOldEntries() {
-  try {
-    const db = await dbPromise;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
-    const cutoffISO = cutoff.toISOString();
-
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index('timestamp');
-
-    const range = IDBKeyRange.upperBound(cutoffISO);
-    const req = index.openCursor(range);
-
-    req.onsuccess = (e) => {
-      const cursor = e.target.result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      }
-    };
-
-    await new Promise((resolve) => { tx.oncomplete = resolve; });
-  } catch (err) {
-    console.warn('[ActivityLog] Cleanup failed:', err);
   }
 }
 

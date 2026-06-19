@@ -244,6 +244,19 @@ export function resetAdminSessionCache() {
   console.log('[GLPI] Admin session cache cleared');
 }
 
+// Automatically kill admin session when user leaves/reloads the page
+window.addEventListener('unload', () => {
+  if (cachedAdminSessionToken && GLPI_API_URL) {
+    try {
+      fetch(`${GLPI_API_URL}/killSession`, {
+        method: 'GET',
+        headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': cachedAdminSessionToken },
+        keepalive: true
+      }).catch(()=>{});
+    } catch(e) {}
+  }
+});
+
 export async function loginUser(username, password, rememberMe = true) {
   try {
     const credentials = btoa(`${username}:${password}`);
@@ -383,13 +396,8 @@ export async function loginUser(username, password, rememberMe = true) {
       allowed = true;
     }
 
-    // Cleanup Admin Session if used
-    if (adminSessionToken) {
-      fetch(`${GLPI_API_URL}/killSession`, {
-        method: 'GET',
-        headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSessionToken }
-      }).catch(() => {});
-    }
+    // We no longer kill adminSessionToken here. It is cached and will be killed on window unload.
+    // This prevents race conditions with background logging and prevents orphaned sessions.
 
     if (!allowed) {
       await fetch(`${GLPI_API_URL}/killSession`, {
@@ -490,8 +498,8 @@ export async function fetchGLPITickets() {
     const activeSession = adminSession || session;
     console.log('[GLPI] fetchGLPITickets using session:', adminSession ? 'ADMIN BYPASS (Synchronized)' : 'USER SESSION');
 
-    // Ambil 1000 tiket terakhir untuk memastikan data 90 hari tercover
-    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-1000&expand_dropdowns=true&sort=id&order=DESC`, {
+    // Ambil 400 tiket terakhir untuk memastikan data 45 hari tercover (Performa lebih ringan)
+    const res = await fetch(`${GLPI_API_URL}/Ticket?range=0-400&expand_dropdowns=true&sort=id&order=DESC`, {
       headers: {
         'App-Token': GLPI_APP_TOKEN,
         'Session-Token': activeSession
@@ -507,9 +515,9 @@ export async function fetchGLPITickets() {
     const localData = loadData();
 
     // Filter tiket onboarding (Device Request) yang berstatus Assigned (2), Solved (5), atau Closed (6)
-    // DAN batasi hanya untuk 90 hari terakhir
+    // DAN batasi hanya untuk 45 hari terakhir
     const ninetyDaysAgoAPI = new Date();
-    ninetyDaysAgoAPI.setDate(ninetyDaysAgoAPI.getDate() - 90);
+    ninetyDaysAgoAPI.setDate(ninetyDaysAgoAPI.getDate() - 45);
 
     const onboardingTickets = tickets.filter(t => {
       const title = t.name || '';
@@ -1268,12 +1276,6 @@ export async function getAllGLPILocations() {
         .map(l => ({ id: l.id, name: l.completename || l.name }));
       if (locations.length > 0) {
         console.log('[GLPI Locations] Direct endpoint success:', locations.length, 'locations');
-        if (adminSession) {
-          fetch(`${GLPI_API_URL}/killSession`, {
-            method: 'GET',
-            headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
-          }).catch(() => {});
-        }
         return locations;
       }
     }
@@ -1293,24 +1295,11 @@ export async function getAllGLPILocations() {
         })).filter(l => l.id);
         if (locations.length > 0) {
           console.log('[GLPI Locations] Search API success:', locations.length, 'locations');
-          if (adminSession) {
-            fetch(`${GLPI_API_URL}/killSession`, {
-              method: 'GET',
-              headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
-            }).catch(() => {});
-          }
           return locations;
         }
       }
     }
   } catch (e) { /* try next */ }
-
-  if (adminSession) {
-    fetch(`${GLPI_API_URL}/killSession`, {
-      method: 'GET',
-      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': adminSession }
-    }).catch(() => {});
-  }
 
   // Strategy 3: Extract from User data using userSession (fallback)
   console.log('[GLPI Locations] Direct & Search denied or returned empty. Extracting from User data...');
@@ -1516,5 +1505,99 @@ export async function markAsPrinted(empId, signatureDataURL, technicianName) {
   return true;
 }
 
+// ==========================================
+// Centralized Activity Log (GLPI Pseudo-Database via Followups)
+// ==========================================
 
+let centralActivityTicketId = null;
 
+export async function getCentralActivityTicketId() {
+  if (centralActivityTicketId) return centralActivityTicketId;
+  const session = await getAdminSessionToken() || await getSession();
+  if (!session || !GLPI_API_URL || GLPI_API_URL.includes('localhost')) return null;
+
+  try {
+    const searchRes = await fetch(`${GLPI_API_URL}/search/Ticket?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]=SOLUSIKU_ACTIVITY_LOG&sort=id&order=DESC`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+    const searchData = await searchRes.json();
+    if (searchData.data && searchData.data.length > 0) {
+      centralActivityTicketId = searchData.data[0]['2'];
+      return centralActivityTicketId;
+    }
+
+    const createRes = await fetch(`${GLPI_API_URL}/Ticket`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session },
+      body: JSON.stringify({
+        input: { name: 'SOLUSIKU_ACTIVITY_LOG', content: 'Database Log Aktivitas Tersentralisasi (Jangan dihapus)', status: 5 }
+      })
+    });
+    if (createRes.ok) {
+      const createData = await createRes.json();
+      centralActivityTicketId = createData.id;
+      return centralActivityTicketId;
+    }
+  } catch(e) {}
+  return null;
+}
+
+export async function uploadActivityLogEntry(entry) {
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
+  const ticketId = await getCentralActivityTicketId();
+  if (!ticketId || !session) return false;
+  
+  try {
+    const payloadStr = JSON.stringify(entry);
+    const contentPayload = `<!--LOG_START-->${payloadStr}<!--LOG_END-->`;
+    
+    const postRes = await fetch(`${GLPI_API_URL}/ITILFollowup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session },
+      body: JSON.stringify({
+        input: { itemtype: 'Ticket', items_id: ticketId, content: contentPayload }
+      })
+    });
+
+    return postRes.ok;
+  } catch(e) { return false; }
+}
+
+export async function fetchActivityLogsFromGLPI() {
+  const adminSession = await getAdminSessionToken();
+  const session = adminSession || await getSession();
+  const ticketId = await getCentralActivityTicketId();
+  if (!ticketId || !session) return [];
+  
+  try {
+    const getRes = await fetch(`${GLPI_API_URL}/Ticket/${ticketId}/ITILFollowup?range=0-9999&sort=id&order=ASC`, {
+      headers: { 'App-Token': GLPI_APP_TOKEN, 'Session-Token': session }
+    });
+    
+    if (!getRes.ok) return [];
+    
+    const followups = await getRes.json();
+    let logs = [];
+    
+    for (const f of followups) {
+      if (f.content) {
+        const match = f.content.match(/<!--LOG_START-->(.*?)<!--LOG_END-->/s);
+        if (match && match[1]) {
+          try {
+            const cleanJson = match[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#38;/g, '&');
+            const decoded = JSON.parse(cleanJson.trim());
+            
+            if (decoded.action === 'CLEAR_ALL') {
+              logs = [];
+            } else {
+              logs.push(decoded);
+            }
+          } catch(e) {}
+        }
+      }
+    }
+    
+    return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  } catch(e) { return []; }
+}

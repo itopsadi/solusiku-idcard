@@ -149,8 +149,10 @@ export function renderLogin(container) {
         }
         
         // Hard reload to dashboard with clean state
-        window.location.href = window.location.pathname + '#/';
-        window.location.reload(true);
+        setTimeout(() => {
+          window.location.href = window.location.pathname + '#/';
+          window.location.reload(true);
+        }, 800); // Delay to allow background activity logs to fire
       }
     } catch (err) {
       console.error(err);

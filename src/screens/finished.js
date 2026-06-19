@@ -12,13 +12,17 @@ export async function renderFinished(container) {
   let currentSearchQuery = '';
 
   const employees = await getEmployees();
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  
+  // Filter for 45 days locally
+  const fortyFiveDaysAgo = new Date();
+  fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
 
-  // Ambil yang sudah selesai (approved + cancelled + printed) dalam 90 hari terakhir dan urutkan terbaru di atas
-  const finishedEmployees = employees
-    .filter(e => (e.status === 'approved' || e.status === 'cancelled' || e.status === 'printed') && new Date(e.createdAt) >= ninetyDaysAgo)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Ambil yang sudah selesai (approved + cancelled + printed) dalam 45 hari terakhir dan urutkan terbaru di atas
+  const finishedEmployees = employees.filter(e => {
+    const isFinishedState = e.status === 'approved' || e.status === 'cancelled' || e.status === 'printed';
+    const reqDate = new Date(e.createdAt);
+    return isFinishedState && (reqDate >= fortyFiveDaysAgo);
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   container.innerHTML = `
     <div class="page-header animate-in">
@@ -262,7 +266,8 @@ function renderRows(employees) {
     } else if (emp.status === 'printed') {
       const pInfo = getPrintedInfo(emp.ticketId);
       const techName = pInfo ? pInfo.technicianName : 'Teknisi';
-      aksiHtml = `<span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Sudah Di Cetak<br><small style="opacity:0.8;">[${techName}]</small></span>`;
+      const printDate = pInfo && pInfo.timestamp ? `<br><span style="opacity:0.7; font-size: 0.65rem; display:block; margin-top:2px;">${formatDate(pInfo.timestamp)}</span>` : '';
+      aksiHtml = `<div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500; line-height: 1.3;">Sudah Di Cetak<br><span style="opacity:0.9; color: var(--text-primary);">[${techName}]</span>${printDate}</div>`;
     }
 
     return `

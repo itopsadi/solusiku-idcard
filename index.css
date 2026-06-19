@@ -1286,6 +1286,16 @@ body {
 
   .activity-filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .activity-filter-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .activity-filter-actions .btn {
+    flex: 1 1 auto;
+  }
 }
 
 .signature-canvas-wrapper {
@@ -1295,7 +1305,23 @@ body {
   overflow: hidden;
   margin-top: 8px;
   position: relative;
+  touch-action: none;
 }
+
+.signature-canvas-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  opacity: 0.15;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
 .signature-canvas {
   width: 100%;
   height: 200px;
@@ -1303,6 +1329,8 @@ body {
   touch-action: none; /* Mencegah scrolling saat tanda tangan di HP */
   cursor: crosshair;
 }
+
 @media (max-width: 576px) {
-  .signature-canvas { height: 160px; }
+  .signature-canvas { height: 180px; }
+  .signature-canvas-watermark { font-size: 1.5rem; }
 }
